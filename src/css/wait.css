@@ -1,30 +1,59 @@
+/* ── Loading overlay ── */
 #PleaseWait {
   position: fixed;
   width: 100vw;
   height: 100vh;
-  background-color: rgb(0, 0, 0, 0.5);
+  background-color: rgb(0 0 0 / 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
-  font-size: 2em;
-  transition: all 0.5s ease-in;
+  z-index: 1000;
+  font-size: 1em;
+  transition: opacity 0.4s cubic-bezier(0.2, 0, 0, 1);
   opacity: 1;
   top: 0;
   left: 0;
 }
 
 #PleaseWait:empty {
-  background-color: rgb(0, 0, 0, 0);
   opacity: 0;
+  pointer-events: none;
 }
 
 #PleaseWait div {
-  padding: 5em;
-  border: 1px solid black;
-  background-color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 2.5em 4em;
+  border: 1px solid var(--border-color);
+  background-color: var(--surface1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
 }
 
 #PleaseWait .message {
-  color: blue;
+  color: var(--brand);
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+/* ── Animated spinner ring ── */
+#PleaseWait div::before {
+  content: "";
+  display: block;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 3px solid hsl(var(--hue) 25% 88%);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: wait-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes wait-spin {
+  to { transform: rotate(360deg); }
 }

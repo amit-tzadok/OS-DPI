@@ -8,6 +8,24 @@ import "css/menu.css";
 import Globals from "app/globals";
 import { callAfterRender } from "app/render";
 
+// Track every currently-open Menu so a single document listener can close them
+// when the user clicks outside.
+/** @type {Set<Menu>} */
+const openMenus = new Set();
+
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    for (const menu of openMenus) {
+      const el = document.getElementById(menu.id);
+      if (el && !el.contains(/** @type {Node} */ (e.target))) {
+        menu._closeFromOutside();
+      }
+    }
+  },
+  true, // capture phase — runs before the menu button's own click handler
+);
+
 export class MenuItem {
   /**
    * @param {Object} obj - argument object
@@ -157,6 +175,11 @@ export class Menu {
   toggleExpanded = (event = null, last = false) => {
     {
       this.expanded = !this.expanded;
+      if (this.expanded) {
+        openMenus.add(this);
+      } else {
+        openMenus.delete(this);
+      }
       // this trick lets us distinguish between clicking the menu button with the mouse
       // and hitting Enter on the keyboard
       const mouseClick = event && event["detail"] !== 0;
@@ -175,6 +198,14 @@ export class Menu {
       Globals.state.update();
     }
   };
+
+  /** Close the menu in response to a click outside it */
+  _closeFromOutside() {
+    if (!this.expanded) return;
+    this.expanded = false;
+    openMenus.delete(this);
+    Globals.state.update();
+  }
 
   /** handle the keyboard when inside the menu
    *

@@ -4,3 +4,4 @@
 src/dist/
 src/thinking/wiki
 .DS_Store
+src/.env

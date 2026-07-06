@@ -1,12 +1,66 @@
+/* ── Designer split layout ── */
 body.designing {
   display: grid;
-  grid-template-rows: 2.5em 50% auto;
-  grid-template-columns: 50% 50%;
+  grid-template-rows: 1fr;
+  grid-template-columns: var(--split, 50%) 20px calc(100% - var(--split, 50%) - 20px);
 }
 
 body.designing div#UI {
-  font-size: 0.7vw;
   flex: 1 1 0;
+}
+
+/* ── Draggable split handle ── */
+#split-handle {
+  display: none;
+}
+
+body.designing #split-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  grid-row: 1;
+  grid-column: 2;
+  cursor: col-resize;
+  width: 20px;
+  z-index: 10;
+  background: var(--surface2, #eee);
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  transition: background var(--transition-fast);
+  user-select: none;
+}
+
+/* Grip dots drawn via pseudo-element */
+body.designing #split-handle::before {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 36px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--border-color) 0,
+    var(--border-color) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  transition: background var(--transition-fast);
+}
+
+body.designing #split-handle:hover,
+body.designing #split-handle.dragging {
+  background: hsl(var(--hue, 160) 60% 94%);
+}
+
+body.designing #split-handle:hover::before,
+body.designing #split-handle.dragging::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--brand) 0,
+    var(--brand) 4px,
+    transparent 4px,
+    transparent 8px
+  );
 }
 
 div#designer {
@@ -18,43 +72,90 @@ div#tabs {
   overflow-y: hidden;
   overflow-x: hidden;
   flex: 1 1 0;
+  min-height: 0;
 }
 
 body.designing div#designer {
   display: flex;
   grid-row-start: 1;
-  grid-row-end: 4;
-  grid-column-start: 2;
+  grid-row-end: 2;
+  grid-column-start: 3;
   overflow: hidden;
   height: 100vh;
   flex-direction: column;
-}
-body.designing #UI {
-  grid-row-start: 1;
-  grid-row-end: 3;
-  grid-column-start: 1;
-  position: relative;
-}
-body.designing #monitor {
-  grid-row-start: 3;
-  grid-column-start: 1;
+  border-left: 1px solid var(--border-color);
+  background-color: var(--surface1);
 }
 
+/* ── Canvas area (left pane in designer mode) ── */
+body.designing #UI {
+  grid-row-start: 1;
+  grid-row-end: 2;
+  grid-column-start: 1;
+  position: relative;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--hue) 18% 72%) transparent;
+  /* Refined dot-grid canvas signal */
+  background-image: radial-gradient(
+    circle,
+    hsl(var(--hue) 6% 62% / 0.28) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
+}
+
+/* ── List resets inside designer ── */
 #designer ol,
 #designer ul {
   list-style-type: none;
   margin-block-start: 0;
-  padding-inline-start: 1em;
-  border-left: 1px solid #d0d0d0;
+  padding-inline-start: 1.1em;
+  border-left: 1px solid
+    color-mix(in srgb, var(--border-color) 55%, transparent);
+  margin-top: 0.4em;
 }
 
+/* ── Settings accordion (component property groups) ── */
 #designer .settings > details > summary {
   cursor: pointer;
   background-color: var(--surface2);
+  padding: 0.55em 0.85em;
+  border-radius: var(--radius-sm);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  user-select: none;
+  transition:
+    background-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+  justify-content: space-between;
+}
+
+#designer .settings > details > summary::before {
+  content: "▶";
+  font-size: 0.58em;
+  opacity: 0.45;
+  transition: transform var(--transition-fast);
+  flex-shrink: 0;
+}
+
+#designer .settings > details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+#designer .settings > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+#designer .settings > details > summary:hover {
+  background: var(--surface3);
+  box-shadow: var(--shadow-xs);
 }
 
 #designer .settings > details {
-  margin-bottom: 0.5em;
+  margin-bottom: 0.6em;
 }
 
 details summary > * {
@@ -62,180 +163,219 @@ details summary > * {
 }
 
 #designer .settings > details[open] {
-  border: 4px inset var(--surface4);
-  padding-left: 0.2em;
-  padding-bottom: 0.2em;
+  border-left: 2px solid var(--border-color);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  padding: 0.4em 0 0.2em;
+  background: var(--surface1);
 }
 
 #designer .settings > details summary h3 {
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: -0.01em;
+  color: var(--text1);
+  flex: 1;
+  min-width: 0;
 }
 
-#designer details label {
-  margin-left: 1em;
-  margin-bottom: 0.5em;
+#designer details label.labeledInput:not([hiddenLabel]) {
+  margin: 0 0 0.45em 1em;
 }
 
 #designer .settings {
-  background-color: var(--surface2);
+  background-color: transparent;
   color: var(--text2);
   border: 0px;
   box-shadow: none;
+  border-radius: var(--radius-md);
 }
 
+/* Selected component highlight */
 #designer .settings:has([aria-selected="true"]),
 #designer .settings[aria-selected="true"] {
   background-color: var(--surface1);
   color: var(--text1);
-  outline: 4px dashed var(--brand);
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
 }
+
 #designer .settings:has(.settings [aria-selected="true"]) {
-  background-color: var(--surface2);
+  background-color: transparent;
   color: var(--text2);
   outline: 0px;
   box-shadow: none;
 }
 
-#designer :focus {
-  outline: var(--text2) 4px dashed;
+/* Focus ring inside designer */
+#designer :focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
 }
 
 #designer .indicator {
   color: var(--brand);
 }
 
+/* ── Scrollable panels area ── */
 #designer .panels {
   display: block;
   overflow-y: auto;
+  padding: 1.15em 1.25em;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color-strong) transparent;
 }
 
+#designer .panels::-webkit-scrollbar {
+  width: 5px;
+}
+#designer .panels::-webkit-scrollbar-track {
+  background: transparent;
+}
+#designer .panels::-webkit-scrollbar-thumb {
+  background: var(--border-color-strong);
+  border-radius: var(--radius-full);
+}
+#designer .panels::-webkit-scrollbar-thumb:hover {
+  background: var(--brand);
+}
+
+/* ── Selection highlights in the preview canvas ── */
 .selectedInDesigner {
-  border: 2px dashed red;
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
 }
 
 #UI [id]:has(.selectedInDesigner) {
-  border: 2px dotted yellow;
+  outline: 1px dashed hsl(var(--hue) 60% 60% / 0.7);
+  outline-offset: -1px;
 }
 
+/* ── Tab container inside designer right panel ── */
 .designer {
   display: flex;
   width: 100%;
   height: 100%;
 }
-.designer .buttons button:focus {
+
+.designer .buttons button:focus-visible {
   background-color: var(--surface2);
 }
+
 .designer .panels {
   display: flex;
 }
+
 .designer .buttons {
   display: flex;
   list-style-type: none;
   padding-inline-start: 0 !important;
   flex-direction: row;
+  background-color: var(--surface3);
+  border-bottom: 1px solid var(--border-color);
+  gap: 3px;
+  padding: 5px 8px !important;
 }
+
 .designer .buttons li {
   flex: 1 1 0;
   display: flex;
 }
+
 .designer .buttons button {
   flex: 1 1 0;
-  background-color: var(--surface2);
+  background-color: transparent;
   color: var(--text2);
+  padding: 0.42em 0.7em;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
+  font-size: 0.84rem;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-sm);
 }
-.designer .buttons button[active] {
-  font-weight: bold;
-  background-color: var(--surface1);
+
+.designer .buttons button:hover {
+  background-color: hsl(0 0% 100% / 0.55);
   color: var(--text1);
 }
 
-.designer.top {
-  flex-direction: column;
+.designer .buttons button[active] {
+  font-weight: 700;
+  background-color: #fff;
+  color: var(--brand);
+  box-shadow: var(--shadow-sm);
 }
-.designer.top .panels {
-  order: 2;
+
+/* "Advanced" group toggle: visually quieter than real tabs, with a
+   separator so the rarely-used tabs read as a distinct group */
+.designer .buttons li.advanced-toggle {
+  flex: 0 0 auto;
+  border-left: 1px solid var(--border-color-strong);
+  margin-left: 3px;
+  padding-left: 6px;
 }
+
+.designer .buttons li.advanced-toggle button {
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  font-style: italic;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.designer .buttons li.advanced-toggle button:hover {
+  color: var(--text1);
+}
+
+/* ── Orientation variants ── */
+.designer.top  { flex-direction: column; }
+.designer.top .panels  { order: 2; }
+.designer.top .buttons { order: 1; }
 .designer.top .buttons {
-  order: 1;
+  padding: 5px 8px !important;
+  gap: 3px;
 }
 .designer.top .buttons button[active] {
-  border-bottom: 1px;
-  margin-top: 0px;
+  /* pill card — no border-bottom underline, just the white pill with shadow */
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
 }
 .designer.top .buttons button {
-  border-top-left-radius: 1em;
-  border-top-right-radius: 1em;
-  margin-top: 10px;
+  border-radius: var(--radius-sm);
+  margin-top: 0;
 }
 
-.designer.bottom {
-  flex-direction: column;
-}
-.designer.bottom .panels {
-  order: 1;
-}
-.designer.bottom .buttons {
-  order: 2;
-}
+.designer.bottom { flex-direction: column; }
+.designer.bottom .panels  { order: 1; }
+.designer.bottom .buttons { order: 2; }
 .designer.bottom .buttons button[active] {
-  border-top: 1px;
-  margin-bottom: 0px;
+  border-top: 2px solid var(--brand);
+  box-shadow: none;
 }
 .designer.bottom .buttons button {
-  border-bottom-left-radius: 1em;
-  border-bottom-right-radius: 1em;
-  margin-bottom: 10px;
+  border-radius: 0;
+  margin-bottom: 0;
 }
 
-.designer.right {
-  flex-direction: row;
-}
-.designer.right .panels {
-  order: 1;
-}
-.designer.right .buttons {
-  order: 2;
-  flex-direction: column;
-}
-.designer.right .buttons button[active] {
-  border-left: 1px;
-  margin-right: 0;
-}
-.designer.right .buttons button {
-  border-top-right-radius: 1em;
-  border-bottom-right-radius: 1em;
-  margin-right: 10px;
-}
+.designer.right { flex-direction: row; }
+.designer.right .panels  { order: 1; }
+.designer.right .buttons { order: 2; flex-direction: column; }
+.designer.right .buttons button[active] { border-left: 2px solid var(--brand); }
+.designer.right .buttons button { border-radius: 0; margin-right: 0; }
 
-.designer.left {
-  flex-direction: row;
-}
-.designer.left .panels {
-  order: 2;
-  flex: 1;
-}
-.designer.left .buttons {
-  order: 1;
-  flex-direction: column;
-  flex: 1;
-}
-.designer.left .buttons button[active] {
-  border-right: 1px;
-  margin-left: 0;
-}
-.designer.left .buttons button {
-  border-top-left-radius: 1em;
-  border-bottom-left-radius: 1em;
-  margin-left: 10px;
-}
+.designer.left { flex-direction: row; }
+.designer.left .panels  { order: 2; flex: 1; }
+.designer.left .buttons { order: 1; flex-direction: column; flex: 1; }
+.designer.left .buttons button[active] { border-right: 2px solid var(--brand); }
+.designer.left .buttons button { border-radius: 0; margin-left: 0; }
 
-.designer.none .buttons {
-  display: none;
-}
+.designer.none .buttons { display: none; }
 
-.DesignerPanel {
-  display: none;
-}
+/* ── Panel display ── */
+.DesignerPanel { display: none; }
 
 .DesignerPanel.ActivePanel {
   display: flex;
@@ -243,3 +383,140 @@ details summary > * {
   height: 100%;
   flex-direction: column;
 }
+
+/* ── Dark mode tab bar ── */
+@media (prefers-color-scheme: dark) {
+  .designer .buttons {
+    background-color: var(--surface3);
+    border-bottom-color: var(--border-color);
+  }
+  .designer .buttons button { color: var(--text2); }
+  .designer .buttons button:hover { background-color: hsl(0 0% 100% / 0.08); }
+  .designer .buttons button[active] { background-color: var(--surface4); color: var(--brand); }
+}
+html[color-scheme="dark"] .designer .buttons {
+  background-color: var(--surface3);
+  border-bottom-color: var(--border-color);
+}
+html[color-scheme="dark"] .designer .buttons button { color: var(--text2); }
+html[color-scheme="dark"] .designer .buttons button:hover { background-color: hsl(0 0% 100% / 0.08); }
+html[color-scheme="dark"] .designer .buttons button[active] { background-color: var(--surface4); color: var(--brand); }
+
+/* ── Panel help block ── */
+.panel-help {
+  font-size: 0.8rem;
+  color: var(--text2);
+  background: var(--surface2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin: 0.6em 0 0.8em;
+  overflow: hidden;
+  /* flex item in the DesignerPanel column — don't let it get squeezed */
+  flex-shrink: 0;
+}
+
+.panel-help summary {
+  cursor: pointer;
+  padding: 0.45em 0.75em;
+  font-weight: 600;
+  color: var(--text2);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  user-select: none;
+}
+
+.panel-help summary::before {
+  content: "ℹ";
+  font-size: 0.9em;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.panel-help summary::-webkit-details-marker { display: none; }
+
+.panel-help[open] summary {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.panel-help-body {
+  padding: 0.55em 0.85em 0.65em;
+  line-height: 1.6;
+}
+
+.panel-help-body p {
+  margin: 0 0 0.5em;
+}
+
+.panel-help-body p:last-child {
+  margin-bottom: 0;
+}
+
+.panel-help-body ul {
+  margin: 0.3em 0 0;
+  padding-left: 1.2em;
+  border: none;
+  list-style: disc;
+}
+
+.panel-help-body li {
+  margin-bottom: 0.2em;
+}
+
+.panel-help-body code {
+  font-family: monospace;
+  font-size: 0.92em;
+  background: var(--surface3, var(--surface1));
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+}
+
+/* ── Multi-edit panel ── */
+.multi-edit-panel {
+  background: var(--surface1);
+  border: 1.5px solid var(--brand);
+  border-radius: var(--radius-md);
+  padding: 0.85em 1em;
+  margin-bottom: 0.85em;
+  flex-shrink: 0;
+}
+
+.multi-edit-panel h3 {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--brand);
+  margin: 0 0 0.65em;
+}
+
+.multi-edit-panel label {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.84rem;
+  margin-bottom: 0.45em;
+  color: var(--text1);
+}
+
+.multi-edit-panel input {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.28em 0.55em;
+  background: var(--surface1);
+  color: var(--text1);
+  font-size: 0.84rem;
+}
+
+.multi-edit-panel button {
+  margin-top: 0.55em;
+  padding: 0.32em 0.85em;
+  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--surface2);
+  cursor: pointer;
+}
+

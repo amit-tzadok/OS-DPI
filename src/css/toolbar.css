@@ -1,56 +1,654 @@
+/* ── Main toolbar strip ── */
 .toolbar {
-  padding: 3px;
-  margin: 3px;
-  border-radius: 0.5em;
+  padding: 5px 12px;
+  margin: 0;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  min-height: 3.25rem;
+  gap: 0.25em;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--surface1);
+  flex-shrink: 0;
 }
+
 .toolbar > ul {
   list-style: none;
-  padding-inline-start: 1em;
+  padding-inline-start: 0.75em;
 }
+
 .toolbar > ul li {
   display: inline;
 }
+
+/* ── Default toolbar button ── */
 .toolbar button {
-  border-radius: 0.5em;
+  border-radius: var(--radius-md);
   color: var(--text2);
-  background-color: var(--surface2);
-}
-.toolbar input {
-  border-radius: 0.5em;
+  background-color: transparent;
+  padding: 0.42em 0.9em;
+  border: 1px solid transparent;
+  min-height: 2.1rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  letter-spacing: 0.01em;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
+.toolbar button:hover {
+  background: var(--surface3);
+  border-color: var(--border-color);
+  color: var(--text1);
+  box-shadow: var(--shadow-xs);
+}
+
+.toolbar button:active {
+  background: var(--surface4);
+  transform: scale(0.98);
+}
+
+.toolbar input {
+  border-radius: var(--radius-md);
+}
+
+/* ── Brand toolbar — frosted white nav, Apple style ── */
+.toolbar.brand {
+  background: hsl(var(--surface1-hsl) / 0.82);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom-color: var(--border-color);
+  box-shadow: none;
+  /* backdrop-filter creates a stacking context, which traps the dropdown
+     menus' z-index inside it; lift the whole bar above board content
+     (grid buttons and cells use z-index: 1) */
+  position: relative;
+  z-index: 50;
+}
+
+.toolbar.brand > ul {
+  padding-inline-start: 0.75em;
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+}
+
+.toolbar.brand label {
+  color: var(--text2);
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+/* Quiet text-style trigger buttons inside the nav */
+.toolbar.brand .Menu > button {
+  background: transparent;
+  color: var(--text1);
+  border-color: transparent;
+  font-weight: 500;
+}
+
+.toolbar.brand .Menu > button:hover {
+  background: var(--surface3);
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text1);
+}
+
+.toolbar.brand .Menu > button:active {
+  background: var(--surface4);
+}
+
+/* Dropdown menus always use normal surface colors */
+.toolbar.brand .Menu ul {
+  background-color: var(--surface1);
+  box-shadow: var(--shadow-lg);
+}
+
+.toolbar.brand .Menu li button {
+  background-color: transparent;
+  color: var(--text1);
+  border-color: transparent;
+}
+
+.toolbar.brand .Menu li button:hover {
+  background-color: var(--surface3);
+  color: var(--text1);
+  box-shadow: none;
+}
+
+/* Board-name input — quiet gray field like an Apple search box */
+.toolbar.brand input[type="text"] {
+  background: var(--surface3);
+  border: 1px solid transparent;
+  color: var(--text1);
+  border-radius: var(--radius-md);
+  padding: 0.38em 0.75em;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.toolbar.brand input[type="text"]::placeholder {
+  color: var(--text2);
+}
+
+.toolbar.brand input[type="text"]:focus {
+  outline: none;
+  border-color: var(--brand);
+  background: var(--surface1);
+  box-shadow: 0 0 0 3px hsl(var(--hue) 70% 60% / 0.22);
+}
+
+/* ── Breadcrumb nav (Home / board-name) ── */
+.toolbar-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+a.toolbar-home-link {
+  color: var(--text2);
+  text-decoration: none;
+  font-size: 0.875em;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border-radius: var(--radius-sm);
+  padding: 0.1em 0.25em;
+  transition: color var(--transition-fast);
+}
+
+a.toolbar-home-link:hover {
+  color: var(--text1);
+}
+
+.toolbar-sep {
+  color: var(--border-color-strong);
+  font-size: 0.9em;
+  user-select: none;
+}
+
+/* ── Keyboard shortcut hints ── */
 [hint] {
   display: inline-block;
   position: relative;
 }
+
 .hints [hint]::after {
   content: attr(hint);
   top: 50%;
   left: 50%;
   font-size: 1em;
-  padding: 0.2em;
+  font-weight: 600;
+  padding: 0.3em 0.6em;
   transform: translate(-50%, 30%);
   position: absolute;
   background-color: var(--text1);
   color: var(--surface1);
   display: block;
   z-index: 100;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.04em;
 }
+
 .hints div#designer[hint]::after,
 .hints div#UI[hint]::after {
   transform: translate(-50%, -50%);
   font-size: 2rem;
+  border-radius: var(--radius-md);
 }
 
+/* ── Dialog / modal ── */
 dialog {
   margin: auto;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-xl);
+  padding: 1.75em 2.25em;
+  min-width: 22em;
+  background-color: var(--surface1);
+  color: var(--text1);
+  animation: dialog-pop 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes dialog-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+dialog h1 {
+  font-size: 1.05em;
+  font-weight: 700;
+  margin-bottom: 0.85em;
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--border-color);
+  letter-spacing: -0.01em;
+}
+
+dialog ul {
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
 }
 
 dialog button {
   margin-top: 1em;
+  padding: 0.52em 1.2em;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  min-height: 2.25rem;
+  background: var(--surface2);
+  color: var(--text1);
+  font-weight: 500;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+dialog button:hover {
+  background: var(--surface3);
+  border-color: var(--brand);
+  box-shadow: var(--shadow-xs);
+}
+
+dialog a {
+  display: block;
+  padding: 0.35em 0.6em;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--transition-fast);
+}
+
+dialog a:hover {
+  background: var(--surface3);
 }
 
 dialog#ImportURL input {
   width: 100%;
   min-width: 50ch;
+}
+
+/* ── Board gallery dialog ── */
+#OpenDialog {
+  min-width: 34em;
+  max-width: 44em;
+  width: min(90vw, 44em);
+  padding: 1.5em 1.75em;
+}
+
+.board-gallery-dialog {
+  display: flex;
+  flex-direction: column;
+}
+
+.board-gallery-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.85em;
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.board-gallery-header h1 {
+  /* override dialog h1 which already has border-bottom — we use header's border instead */
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.board-gallery-home {
+  font-size: 0.8em;
+  font-weight: 500;
+  color: var(--brand);
+  text-decoration: none;
+  opacity: 0.8;
+  transition: opacity var(--transition-fast);
+}
+
+.board-gallery-home:hover {
+  opacity: 1;
+  background: transparent;
+}
+
+.board-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  max-height: 58vh;
+  overflow-y: auto;
+  margin: 0 -0.25em;
+  padding: 0.25em 0.25em;
+}
+
+.board-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85em;
+  padding: 0.6em 0.85em;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--surface1);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.board-card:hover {
+  background: var(--surface2);
+  box-shadow: var(--shadow-xs);
+}
+
+.board-card-current {
+  border-color: hsl(var(--hue) 50% 70%);
+  background: hsl(var(--hue) 60% 97% / 0.8);
+}
+
+.board-card-avatar {
+  width: 2.5em;
+  height: 2.5em;
+  border-radius: var(--radius-md);
+  background: var(--gradient-brand);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.78em;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-brand);
+}
+
+.board-card-info {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.board-card-name {
+  font-weight: 600;
+  font-size: 0.88em;
+  color: var(--text1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+}
+
+.board-current-badge {
+  font-size: 0.7em;
+  font-weight: 600;
+  padding: 0.1em 0.55em;
+  border-radius: var(--radius-full);
+  background: var(--brand);
+  color: #fff;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.board-card-status {
+  font-size: 0.76em;
+  margin-top: 0.18em;
+  font-weight: 500;
+}
+
+.board-card-status.saved {
+  color: hsl(var(--hue) 50% 30%);
+}
+
+.board-card-status.unsaved {
+  color: hsl(35 80% 42%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .board-card-status.saved { color: hsl(var(--hue) 50% 68%); }
+  .board-card-status.unsaved { color: hsl(38 80% 62%); }
+}
+html[color-scheme="dark"] .board-card-status.saved { color: hsl(var(--hue) 50% 68%); }
+html[color-scheme="dark"] .board-card-status.unsaved { color: hsl(38 80% 62%); }
+
+.board-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  flex-shrink: 0;
+}
+
+.board-card-open {
+  display: inline-block;
+  padding: 0.32em 0.85em;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--surface2);
+  color: var(--brand);
+  font-weight: 600;
+  font-size: 0.8em;
+  text-decoration: none;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.board-card-open:hover {
+  background: var(--surface3);
+  border-color: var(--brand);
+}
+
+.board-card-remove {
+  padding: 0.32em 0.75em;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: hsl(0 55% 48%);
+  font-size: 0.78em;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: unset;
+  margin-top: 0;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.board-card-remove:hover {
+  background: hsl(0 70% 97%);
+  border-color: hsl(0 55% 68%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .board-card-remove:hover {
+    background: hsl(0 35% 18%);
+    border-color: hsl(0 45% 42%);
+  }
+  .board-card-current {
+    background: hsl(var(--hue) 35% 18% / 0.6);
+    border-color: hsl(var(--hue) 50% 44%);
+  }
+}
+html[color-scheme="dark"] .board-card-remove:hover {
+  background: hsl(0 35% 18%);
+  border-color: hsl(0 45% 42%);
+}
+html[color-scheme="dark"] .board-card-current {
+  background: hsl(var(--hue) 35% 18% / 0.6);
+  border-color: hsl(var(--hue) 50% 44%);
+}
+
+.board-gallery-empty {
+  color: var(--text2);
+  font-size: 0.88em;
+  text-align: center;
+  padding: 2em 1em;
+  border: 1.5px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  margin: 0.25em 0;
+}
+
+.board-gallery-footer {
+  margin-top: 1.1em;
+  padding-top: 0.85em;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.board-gallery-footer button {
+  margin-top: 0;
+}
+
+.board-gallery-new {
+  background: var(--brand) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  font-weight: 600;
+}
+
+.board-gallery-new:hover {
+  background: hsl(var(--hue) 65% 46%) !important;
+}
+
+/* ── Board thumbnail iframe ── */
+.board-thumb-container {
+  width: 80px;
+  height: 50px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+  background: var(--surface2);
+}
+
+.board-thumb {
+  width: 320px;
+  height: 200px;
+  border: none;
+  pointer-events: none;
+  transform: scale(0.25);
+  transform-origin: top left;
+}
+
+/* ── Preview button (push to far right) ── */
+.toolbar-preview-item {
+  margin-left: auto;
+}
+
+.toolbar-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.4em 1.05em !important;
+  background: var(--brand) !important;
+  color: #fff !important;
+  border: 1px solid transparent !important;
+  border-radius: 9999px !important;
+  font-weight: 600 !important;
+  font-size: 0.84rem !important;
+  box-shadow: none !important;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease !important;
+}
+
+.toolbar-preview-btn svg {
+  width: 0.85em;
+  height: 0.85em;
+  flex-shrink: 0;
+}
+
+.toolbar-preview-btn:hover {
+  background: hsl(var(--hue) 50% 38%) !important;
+  box-shadow: var(--shadow-xs) !important;
+  transform: none !important;
+}
+
+.toolbar-preview-btn:active {
+  transform: scale(0.96) !important;
+  box-shadow: none !important;
+}
+
+/* ── Keyboard shortcut help button ── */
+.toolbar-kbd-help {
+  min-width: 2rem;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0.3em 0.6em;
+}
+
+/* ── Keyboard shortcuts help dialog ── */
+#KeyboardHelp {
+  min-width: 28em;
+  max-width: 36em;
+  padding: 1.75em 2em;
+}
+
+.kbd-help-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.kbd-help-table td {
+  padding: 0.32em 0.5em;
+  vertical-align: middle;
+}
+
+.kbd-help-table td:first-child {
+  white-space: nowrap;
+  width: 11em;
+  color: var(--text2);
+}
+
+.kbd-help-table tr.kbd-section td {
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text2);
+  padding-top: 0.9em;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.kbd-help-table tr.kbd-section:first-child td {
+  padding-top: 0.2em;
+}
+
+kbd {
+  display: inline-block;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 0.15em 0.42em;
+  border: 1px solid var(--border-color);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text1);
+  box-shadow: 0 1px 0 var(--border-color);
+  white-space: nowrap;
 }

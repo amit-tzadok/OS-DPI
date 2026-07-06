@@ -86,6 +86,9 @@ export async function readSheetFromBlob(blob) {
 export async function saveContent(name, rows, type) {
   const XLSX = await import("xlsx");
   const sheetNames = new Set(rows.map((row) => row.sheetName || "sheet1"));
+  if (sheetNames.size === 0) {
+    throw new Error("No content to save");
+  }
   const workbook = XLSX.utils.book_new();
   for (const sheetName of sheetNames) {
     let sheetRows = rows.filter(

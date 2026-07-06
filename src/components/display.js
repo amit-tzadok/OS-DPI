@@ -14,22 +14,44 @@ class Display extends TreeBase {
   scale = new Props.Float(1);
   highlightWords = new Props.Boolean(false);
   clearAfterSpeaking = new Props.Boolean(false);
+  showHistory = new Props.Boolean(false);
 
   /** @type {HTMLDivElement | null} */
   current = null;
 
   static functionsInitialized = false;
 
+  /** @type {string[]} */
+  _history = [];
+
   template() {
     const { state } = Globals;
     let value = state.get(this.stateName.value) || "";
+
+    // Track history: add non-empty values when they change
+    if (value && (this._history.length === 0 || this._history[0] !== value)) {
+      this._history.unshift(value);
+      if (this._history.length > 20) this._history.length = 20;
+    }
+
     const content =
       (hasSlots(value) && formatSlottedString(value)) || formatNote(value);
+
+    const historyPanel =
+      this.showHistory.value && this._history.length > 0
+        ? html`<ol class="display-history" aria-label="Utterance history">
+            ${this._history.map(
+              (entry) => html`<li title=${entry}>${entry}</li>`,
+            )}
+          </ol>`
+        : html``;
+
     return this.component(
       {
         style: {
           backgroundColor: this.background.value,
           fontSize: this.fontSize.value + "rem",
+          flexDirection: "column",
         },
       },
       // prettier-ignore
@@ -43,7 +65,7 @@ class Display extends TreeBase {
           ComponentName: this.Name.value,
           ComponentType: this.className,
         }}
-      >${content}</button>`,
+      >${content}</button>${historyPanel}`,
     );
   }
 

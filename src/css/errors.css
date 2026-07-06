@@ -1,38 +1,167 @@
+/* ── Full-page error overlay ── */
 div#ErrorReport:empty {
   display: none;
 }
 
 div#ErrorReport {
-  padding: 1em;
+  padding: 3rem 2.5rem;
   position: fixed;
   left: 0;
   top: 0;
   width: 100vw;
   height: 100vh;
   z-index: 10000;
-  background: white;
-  opacity: 0.9;
+  background: var(--surface1);
+  opacity: 0.98;
+  overflow-y: auto;
 }
+
 #ErrorReport h1 {
-  color: var(--failure);
+  color: hsl(var(--failure-hue) 65% 48%);
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
 }
 
 #ErrorReport h2 {
-  margin-top: 1em;
-}
-#ErrorReport p {
-  margin: 1em;
-  max-width: 40em;
-}
-
-div#messages {
-  color: var(--failure);
-  padding: 0.5em;
-}
-
-.error {
-  background-color: var(--failure);
+  margin-top: 1.5em;
+  font-size: 1rem;
+  font-weight: 700;
   color: var(--text1);
+}
+
+#ErrorReport p {
+  margin: 0.75em 0;
+  max-width: 42em;
+  color: var(--text2);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+/* ── Inline messages (validation, info) ── */
+div#messages {
+  color: hsl(var(--failure-hue) 60% 46%);
+  padding: 0.5em 0.75em;
+  border-radius: var(--radius-md);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+/* ── Component error state ── */
+.error {
+  background-color: hsl(var(--failure-hue) 75% 95%);
+  color: hsl(var(--failure-hue) 55% 38%);
+  border: 1px solid hsl(var(--failure-hue) 55% 85%);
   justify-content: center;
   align-items: center;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.4em 0.7em;
 }
+
+@media (prefers-color-scheme: dark) {
+  .error {
+    background-color: hsl(var(--failure-hue) 30% 16%);
+    color: hsl(var(--failure-hue) 60% 72%);
+    border-color: hsl(var(--failure-hue) 30% 28%);
+  }
+}
+
+html[color-scheme="dark"] .error {
+  background-color: hsl(var(--failure-hue) 30% 16%);
+  color: hsl(var(--failure-hue) 60% 72%);
+  border-color: hsl(var(--failure-hue) 30% 28%);
+}
+
+/* ── Toast notifications ── */
+#toast-container {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.55em;
+  z-index: 9000;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  min-width: 18em;
+  max-width: 28em;
+  padding: 0.7em 0.85em;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-lg);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+  pointer-events: auto;
+  animation: toast-in 0.22s cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.toast.toast-fade-out {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.toast-error {
+  background: hsl(var(--failure-hue) 90% 97%);
+  border-color: hsl(var(--failure-hue) 60% 82%);
+  color: hsl(var(--failure-hue) 55% 34%);
+}
+
+.toast-info {
+  background: hsl(var(--hue) 80% 97%);
+  border-color: hsl(var(--hue) 55% 80%);
+  color: hsl(var(--hue) 50% 32%);
+}
+
+.toast-success {
+  background: hsl(var(--hue) 50% 95%);
+  border-color: hsl(var(--hue) 40% 74%);
+  color: hsl(var(--hue) 50% 24%);
+}
+
+.toast-message {
+  flex: 1;
+}
+
+.toast-dismiss {
+  background: transparent;
+  border: none;
+  padding: 0 0.25em;
+  font-size: 1.1em;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.toast-dismiss:hover {
+  opacity: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  .toast-error { background: hsl(var(--failure-hue) 30% 14%); border-color: hsl(var(--failure-hue) 30% 28%); color: hsl(var(--failure-hue) 60% 72%); }
+  .toast-info  { background: hsl(var(--hue) 28% 14%); border-color: hsl(var(--hue) 28% 30%); color: hsl(var(--hue) 50% 72%); }
+  .toast-success { background: hsl(var(--hue) 28% 12%); border-color: hsl(var(--hue) 30% 26%); color: hsl(var(--hue) 50% 62%); }
+}
+
+html[color-scheme="dark"] .toast-error { background: hsl(var(--failure-hue) 30% 14%); border-color: hsl(var(--failure-hue) 30% 28%); color: hsl(var(--failure-hue) 60% 72%); }
+html[color-scheme="dark"] .toast-info  { background: hsl(var(--hue) 28% 14%); border-color: hsl(var(--hue) 28% 30%); color: hsl(var(--hue) 50% 72%); }
+html[color-scheme="dark"] .toast-success { background: hsl(var(--hue) 28% 12%); border-color: hsl(var(--hue) 30% 26%); color: hsl(var(--hue) 50% 62%); }

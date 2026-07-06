@@ -99,6 +99,39 @@ window.onerror = async function (msg, _file, _line, _col, error) {
   }
 };
 
+/**
+ * Show a transient toast notification in the bottom-right corner.
+ * @param {string} message
+ * @param {'error'|'info'|'success'} [type]
+ */
+export function showToast(message, type = "error") {
+  let container = /** @type {HTMLElement | null} */ (
+    document.getElementById("toast-container")
+  );
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toast-container";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  const msgSpan = document.createElement("span");
+  msgSpan.className = "toast-message";
+  msgSpan.textContent = message;
+  const dismissBtn = document.createElement("button");
+  dismissBtn.className = "toast-dismiss";
+  dismissBtn.setAttribute("aria-label", "Dismiss");
+  dismissBtn.textContent = "×";
+  dismissBtn.addEventListener("click", () => toast.remove());
+  toast.appendChild(msgSpan);
+  toast.appendChild(dismissBtn);
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add("toast-fade-out");
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
 /** @param {Error} error */
 export function errorHandler(error, extra = "") {
   let stack = [];

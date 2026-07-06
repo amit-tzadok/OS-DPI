@@ -80,9 +80,11 @@ export class State {
 
   /** observe - call this function when the state updates
    * @param {Function} callback
+   * @returns {Function} unsubscribe function
    */
   observe(callback) {
     this.listeners.add(callback);
+    return () => this.listeners.delete(callback);
   }
 
   /** return true if the given state has been upated on this cycle

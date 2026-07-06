@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
+    "jsx": "react-jsx",
     "paths": {
       "app/*": ["./*"],
-      "components/*": ["./components/*"]
+      "components/*": ["./components/*"],
+      "css/*": ["./css/*"]
     },
     "moduleResolution": "bundler",
+    "maxNodeModuleJsDepth": 0,
     "checkJs": true,
     "target": "ESNext",
     "module": "ESNext",
@@ -15,6 +17,7 @@
   },
   "exclude": [
     "node_modules",
+    "dist",
     "docs",
     "thinking",
     "OS-DPI",

@@ -1,37 +1,66 @@
+/* ── Monitor / debug panel ── */
 #monitor {
-  margin-top: 1em;
-  margin-left: 1em;
-  overflow: auto;
+  display: none;
 }
 
 #monitor div {
   display: flex;
   overflow-y: auto;
-  font-size: 10px;
-  margin-top: 0.2em;
+  font-size: 0.72rem;
+  margin-top: 0.35em;
+  gap: 0.75em;
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
 }
 
 #monitor table {
   border-collapse: collapse;
-  border: 1px solid black;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
   height: max-content;
-  margin-right: 1em;
+  margin-right: 0;
+  box-shadow: var(--shadow-xs);
 }
 
 #monitor table td,
 #monitor table th {
-  border: 1px solid black;
-  padding: 0.5em;
+  border: 1px solid var(--border-color);
+  padding: 0.3em 0.65em;
+  color: var(--text1);
+}
+
+#monitor table th {
+  background: var(--surface3);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text2);
 }
 
 #monitor table tr[updated] {
-  font-weight: bold;
+  font-weight: 700;
+  background: hsl(var(--hue) 60% 95%);
+}
+
+@media (prefers-color-scheme: dark) {
+  #monitor table tr[updated] {
+    background: hsl(var(--hue) 30% 18%);
+  }
+}
+
+html[color-scheme="dark"] #monitor table tr[updated] {
+  background: hsl(var(--hue) 30% 18%);
 }
 
 #monitor table tr[undefined] {
-  color: var(--failure);
+  color: hsl(var(--failure-hue) 60% 48%);
 }
 
 #monitor table tr[accessed] {
   background-color: var(--surface2);
+}
+
+#monitor table tr:hover td {
+  background-color: var(--surface3);
 }

@@ -24,6 +24,15 @@ export class Designer extends TreeBase {
   /** @type {DesignerPanel | undefined} */
   currentPanel = undefined;
 
+  /**
+   * Tabs that typical users and speech pathologists rarely need.
+   * They are collapsed behind an "Advanced" toggle in the tab strip.
+   */
+  static ADVANCED_TABS = new Set(["Actions", "Cues", "Patterns", "Methods"]);
+
+  /** Whether the advanced tab group is expanded */
+  showAdvanced = false;
+
   template() {
     const { state } = Globals;
     const panels = this.children;
@@ -41,28 +50,113 @@ export class Designer extends TreeBase {
         this.currentPanel = panel;
       }
     });
-    let buttons = [];
-    buttons = panels
-      .filter((panel) => panel.label.value != "UNLABELED")
-      .map((panel) => {
-        return html`<li>
-          <button
-            ?active=${panel.active}
-            data=${{
-              name: this.name.value,
-              label: panel.tabLabel,
-              component: this.constructor.name,
-              id: panel.id,
-            }}
-            @click=${() => {
-              this.switchTab(panel.tabName);
-            }}
-            tabindex="-1"
-          >
-            ${panel.tabLabel}
-          </button>
-        </li>`;
-      });
+    /** @param {DesignerPanel} panel */
+    const tabButton = (panel) => {
+      return html`<li>
+        <button
+          ?active=${panel.active}
+          data=${{
+            name: this.name.value,
+            label: panel.tabLabel,
+            component: this.constructor.name,
+            id: panel.id,
+          }}
+          @click=${() => {
+            this.switchTab(panel.tabName);
+          }}
+          tabindex="-1"
+        >
+          ${panel.tabLabel}
+        </button>
+      </li>`;
+    };
+
+    const labeled = panels.filter((panel) => panel.label.value != "UNLABELED");
+    const primary = labeled.filter(
+      (panel) => !Designer.ADVANCED_TABS.has(panel.tabLabel),
+    );
+    const advanced = labeled.filter((panel) =>
+      Designer.ADVANCED_TABS.has(panel.tabLabel),
+    );
+    // an active advanced tab must stay visible
+    const advancedActive = advanced.some((panel) => panel.active);
+    const showAdvanced = this.showAdvanced || advancedActive;
+
+    const advancedToggle =
+      advanced.length > 0
+        ? html`<li class="advanced-toggle">
+            <button
+              aria-expanded=${showAdvanced}
+              title="Access methods, cues, patterns, and actions — rarely needed for everyday editing"
+              @click=${() => {
+                if (showAdvanced && advancedActive && primary.length) {
+                  // collapsing while an advanced tab is active:
+                  // fall back to the first primary tab
+                  this.showAdvanced = false;
+                  this.switchTab(primary[0].tabName);
+                } else {
+                  this.showAdvanced = !showAdvanced;
+                  Globals.state.update();
+                }
+              }}
+              tabindex="-1"
+            >
+              Advanced ${showAdvanced ? "▾" : "▸"}
+            </button>
+          </li>`
+        : html``;
+
+    const buttons = [
+      ...primary.map(tabButton),
+      advancedToggle,
+      ...(showAdvanced ? advanced.map(tabButton) : []),
+    ];
+    // Feature 9: multi-edit panel — shown when >1 button is selected
+    const selectedButtons = [...TreeBase.selectedIds]
+      .map((id) => TreeBase.componentFromId(id))
+      .filter((c) => c && c.className === "Button");
+
+    const multiEditPanel =
+      selectedButtons.length > 1
+        ? html`<div class="multi-edit-panel">
+            <h3>Multi-edit: ${selectedButtons.length} buttons selected</h3>
+            <label>
+              Label
+              <input
+                type="text"
+                placeholder="(mixed values)"
+                @change=${(/** @type {InputEvent & { target: HTMLInputElement }} */ e) => {
+                  for (const btn of selectedButtons) {
+                    btn?.["label"]?.set(e.target.value);
+                  }
+                  selectedButtons[0]?.update();
+                }}
+              />
+            </label>
+            <label>
+              Background
+              <input
+                type="color"
+                value="#ffffff"
+                @change=${(/** @type {InputEvent & { target: HTMLInputElement }} */ e) => {
+                  for (const btn of selectedButtons) {
+                    btn?.["background"]?.set(e.target.value);
+                  }
+                  selectedButtons[0]?.update();
+                }}
+              />
+            </label>
+            <button
+              @click=${() => {
+                TreeBase.selectedIds.clear();
+                Globals.layout.update();
+              }}
+            >
+              Clear selection
+            </button>
+          </div>`
+        : html``;
+
     return this.component(
       { classes: ["top", "tabcontrol"] },
       html`
@@ -75,7 +169,7 @@ export class Designer extends TreeBase {
           @focusin=${this.focusin}
           @click=${this.designerClick}
         >
-          ${panels.map((panel) => panel.settings())}
+          ${multiEditPanel}${panels.map((panel) => panel.settings())}
         </div>
         ${colorNamesDataList()}
       `,
@@ -126,7 +220,6 @@ export class Designer extends TreeBase {
     }
     const component = TreeBase.componentFromId(panel.lastFocused);
     if (!component) {
-      console.log("no component");
       return undefined;
     }
     return component;
@@ -424,9 +517,7 @@ export class DesignerPanel extends TreeBase {
    * @returns {Promise<void>}
    *
    */
-  async merge(_obj) {
-    console.log("override me");
-  }
+  async merge(_obj) {}
 
   /**
    * Render the details of a components settings

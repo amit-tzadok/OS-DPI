@@ -1,3 +1,4 @@
+/* ── Stack / page / panel layout containers ── */
 .stack {
   display: flex;
   width: 100%;
@@ -22,4 +23,98 @@
 
 .column {
   flex-direction: column;
+}
+
+/* ── Matrix / grid-mode stack ── */
+.stack.grid-mode {
+  display: grid !important;
+  grid-auto-rows: 1fr;
+  gap: 3px;
+  padding: 3px;
+  width: 100%;
+  height: 100%;
+}
+
+.stack.grid-mode > div {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+
+body.designing .stack.grid-mode {
+  gap: 5px;
+  padding: 5px;
+  overflow: auto;
+}
+
+body.designing .stack.grid-mode > div {
+  min-height: 60px;
+  min-width: 60px;
+  outline: 1px dashed var(--border-color);
+}
+
+/* Hide empty cells in user (non-designing) mode */
+body:not(.designing) .stack.grid-mode > div.empty-cell {
+  display: none;
+}
+
+/* Empty cell placeholder */
+body.designing .stack.grid-mode > div.empty-cell {
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.55;
+}
+
+body.designing .stack.grid-mode > div.empty-cell::before {
+  content: "+";
+  font-size: 1.4em;
+  color: var(--text2);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Snap-to-grid drag target highlight */
+body.designing .stack.grid-mode > div.grid-drop-target {
+  outline: 2px solid var(--brand);
+  background: hsl(var(--hue) 60% 90% / 0.45);
+  opacity: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  body.designing .stack.grid-mode > div.grid-drop-target {
+    background: hsl(var(--hue) 40% 22% / 0.5);
+  }
+}
+
+html[color-scheme="dark"] body.designing .stack.grid-mode > div.grid-drop-target {
+  background: hsl(var(--hue) 40% 22% / 0.5);
+}
+
+/* ── Designer mode: scrollable stacks ── */
+body.designing .column {
+  overflow-y: auto;
+  gap: 5px;
+  padding: 5px;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--hue) 18% 72%) transparent;
+}
+
+body.designing .column > div {
+  flex-shrink: 0;
+  min-height: 80px;
+}
+
+body.designing .row {
+  overflow-x: auto;
+  gap: 5px;
+  padding: 5px;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--hue) 18% 72%) transparent;
+}
+
+body.designing .row > div {
+  flex-shrink: 0;
+  min-width: 80px;
 }

@@ -1,5 +1,240 @@
-div.button,
+/* ── Layout ── */
 button.button {
   height: 100%;
   width: 100%;
+}
+
+/* ── Base visual style ── */
+button.button {
+  overflow: hidden;
+  overflow-wrap: normal;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background-color: var(--surface1);
+  color: var(--text1);
+  user-select: none;
+  touch-action: none;
+  display: flex;
+  align-items: stretch;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+/* ── Hide empty Speech divs rendered as button children ── */
+button.button > div:empty { display: none; }
+
+/* ── Text-only content: fill the button and center the label ── */
+button.button > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  pointer-events: none;
+  text-align: center;
+  padding: 6px 8px;
+  line-height: 1.3;
+  font-weight: 500;
+}
+
+/* ── Image + caption layout ── */
+button.button > div {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  pointer-events: none;
+}
+
+button.button figure {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+button.button figure figcaption {
+  width: 100%;
+  text-align: center;
+  padding: 3px 6px 4px;
+  line-height: 1.25;
+  font-size: 0.88em;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+button.button figure img,
+button.button figure video {
+  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  pointer-events: none;
+}
+
+/* ── Hover / active (user mode only) ── */
+body:not(.designing) button.button:hover {
+  border-color: hsl(var(--hue) 35% 62%);
+  box-shadow: var(--shadow-sm);
+  transform: scale(1.02);
+  background-color: var(--surface2);
+  z-index: 1;
+}
+
+body:not(.designing) button.button:active {
+  transform: scale(0.97);
+  box-shadow: none;
+  background-color: var(--surface3);
+}
+
+/* ── Designer mode ── */
+body.designing button.button {
+  cursor: grab;
+  position: relative;
+  box-shadow: var(--shadow-xs);
+}
+
+body.designing button.button:hover {
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-color-strong);
+}
+
+/* Drop-media hint on buttons that only have a span (text only, no image) */
+body.designing button.button:has(> span)::before {
+  content: "Drop media here";
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  right: 0;
+  font-size: 0.55em;
+  color: var(--text2);
+  opacity: 0;
+  text-align: center;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+body.designing button.button:has(> span):hover::before {
+  opacity: 0.7;
+}
+
+/* Caption area is visually distinct in designer mode */
+body.designing button.button figure figcaption {
+  background-color: var(--surface2);
+  border-top: 1px solid var(--border-color);
+  font-size: 0.78em;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+/* Drag-handle indicator dot */
+body.designing button.button::after {
+  content: "⠿";
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.62em;
+  opacity: 0.25;
+  line-height: 1;
+  pointer-events: none;
+  color: currentColor;
+  transition: opacity var(--transition-fast);
+}
+
+body.designing button.button:hover::after {
+  opacity: 0.55;
+}
+
+/* Grab cursor while actively dragging */
+body.btn-reordering,
+body.btn-reordering * {
+  cursor: grabbing !important;
+}
+
+/* The button being dragged */
+button.button.btn-dragging {
+  opacity: 0.28;
+  border-style: dashed;
+  border-color: var(--brand);
+}
+
+/* Valid media drop target (HTML drag from content panel) */
+button.button.btn-drag-over {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+  background: hsl(var(--hue) 60% 95% / 0.6);
+  box-shadow: 0 0 0 4px hsl(var(--hue) 60% 60% / 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  button.button.btn-drag-over {
+    background: hsl(var(--hue) 40% 20% / 0.5);
+  }
+}
+
+html[color-scheme="dark"] button.button.btn-drag-over {
+  background: hsl(var(--hue) 40% 20% / 0.5);
+}
+
+/* Pointer-drag reorder: insertion position indicators */
+button.button.btn-drop-before {
+  box-shadow: -3px 0 0 0 var(--brand);
+}
+
+button.button.btn-drop-after {
+  box-shadow: 3px 0 0 0 var(--brand);
+}
+
+/* Multi-selection highlight */
+button.button.multi-selected {
+  outline: 3px solid var(--brand);
+  outline-offset: -3px;
+  box-shadow: 0 0 0 5px hsl(var(--hue) 60% 60% / 0.2);
+}
+
+/* ── Button activation flash (user mode) ── */
+button.button.btn-activated {
+  background-color: var(--brand) !important;
+  color: #fff !important;
+  transform: scale(0.95);
+}
+
+/* ── Right-click context menu (design mode) ── */
+#btn-ctx-menu {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md, 0 4px 16px rgba(0,0,0,0.18));
+  padding: 4px 0;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+}
+
+#btn-ctx-menu button {
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0.42em 0.9em;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--text1);
+  transition: background var(--transition-fast);
+  border-radius: 0;
+}
+
+#btn-ctx-menu button:hover:not(:disabled) {
+  background: var(--surface2);
+}
+
+#btn-ctx-menu button:disabled {
+  color: var(--text2);
+  opacity: 0.45;
+  cursor: default;
 }

@@ -1,3 +1,301 @@
+/* ── AI generation section ── */
+.ai-section {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface1);
+}
+
+.ai-section > summary {
+  cursor: pointer;
+  padding: 0.5em 0.8em;
+  font-weight: 600;
+  font-size: 0.84rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  background: var(--surface2);
+  user-select: none;
+  transition: background var(--transition-fast);
+}
+
+.ai-section > summary::-webkit-details-marker { display: none; }
+.ai-section > summary:hover { background: var(--surface3); }
+.ai-section[open] > summary { border-bottom: 1px solid var(--border-color); }
+
+.ai-body {
+  padding: 0.75em 0.9em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.ai-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text2);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+}
+
+
+.ai-input {
+  width: 100%;
+  padding: 0.35em 0.6em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text1);
+  font-size: 0.84rem;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast);
+}
+
+.ai-input:focus {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+  border-color: var(--brand);
+}
+
+.ai-textarea {
+  min-height: 3.5em;
+  resize: vertical;
+}
+
+.ai-row {
+  display: flex;
+  gap: 0.6em;
+}
+
+.ai-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.ai-generate-btn {
+  margin-top: 0.2em;
+  padding: 0.45em 0.9em;
+  font-size: 0.84rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--brand);
+  color: #fff;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.ai-generate-btn:hover:not(:disabled) {
+  background: hsl(var(--hue) 55% 44%);
+}
+
+.ai-generate-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ai-error {
+  font-size: 0.8rem;
+  color: hsl(4 70% 50%);
+  background: hsl(4 80% 97%);
+  border: 1px solid hsl(4 60% 88%);
+  border-radius: var(--radius-sm);
+  padding: 0.35em 0.6em;
+  margin: 0;
+}
+
+.ai-success {
+  font-size: 0.8rem;
+  color: hsl(var(--hue) 50% 28%);
+  background: hsl(var(--hue) 40% 95%);
+  border: 1px solid hsl(var(--hue) 35% 80%);
+  border-radius: var(--radius-sm);
+  padding: 0.35em 0.6em;
+  margin: 0;
+}
+
+/* ── Content panel wrapper ── */
+.content > div {
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+/* ── Section heading ── */
+.content h1 {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin: 0;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* ── Data summary text ── */
+.content > div > p {
+  font-size: 0.82rem;
+  color: var(--text2);
+  line-height: 1.55;
+  margin: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.5em 0.8em;
+}
+
+/* ── Media workflow tip ── */
+.content-media-tip {
+  font-size: 0.82rem;
+  line-height: 1.55;
+  background: hsl(var(--hue) 55% 97%);
+  border: 1px solid hsl(var(--hue) 40% 88%);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius-md);
+  padding: 0.6em 0.85em;
+  color: var(--text1);
+}
+
+.content-media-tip strong {
+  font-weight: 700;
+  color: var(--text1);
+  display: block;
+  margin-bottom: 0.35em;
+}
+
+.content-media-tip ol {
+  margin: 0;
+  padding-inline-start: 1.4em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+
+.content-media-tip li {
+  color: var(--text2);
+}
+
+.content-media-tip li strong {
+  display: inline;
+  font-weight: 600;
+  color: var(--brand);
+  margin-bottom: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .content-media-tip {
+    background: hsl(var(--hue) 25% 14%);
+    border-color: hsl(var(--hue) 28% 26%);
+    border-left-color: var(--brand);
+  }
+}
+
+html[color-scheme="dark"] .content-media-tip {
+  background: hsl(var(--hue) 25% 14%);
+  border-color: hsl(var(--hue) 28% 26%);
+  border-left-color: var(--brand);
+}
+
+/* ── Sub-section heading ── */
+.content h2 {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin: 0;
+}
+
+/* ── Action button row ── */
+.content-media-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  flex-wrap: wrap;
+}
+
+/* ── Action buttons inside content panel ── */
+.content > div > button,
+.content-media-actions button {
+  padding: 0.42em 0.9em;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--surface2);
+  color: var(--text1);
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.content > div > button:hover,
+.content-media-actions button:hover {
+  background: var(--surface3);
+  border-color: var(--border-color-strong);
+  box-shadow: var(--shadow-xs);
+}
+
+.content > div > button:active,
+.content-media-actions button:active {
+  background: var(--surface4);
+}
+
+/* Primary "Load media" button stands out more */
+.content-load-media-btn {
+  background: var(--brand) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: var(--shadow-brand) !important;
+}
+
+.content-load-media-btn:hover {
+  background: hsl(var(--hue) 65% 46%) !important;
+  box-shadow: var(--shadow-brand-lg) !important;
+}
+
+/* ── Media list "Load more" pagination button ── */
+.content-load-more-btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.5em;
+  padding: 0.38em 0.8em;
+  font-size: 0.83rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text1);
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--transition-fast);
+}
+
+.content-load-more-btn:hover {
+  background: var(--surface3);
+}
+
+/* ── Checkbox label ── */
+.content > div > label {
+  font-size: 0.84rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  align-self: flex-start;
+  color: var(--text2);
+}
+
+/* ── URL import form ── */
 .content form {
   display: flex;
   width: 100%;
@@ -9,14 +307,134 @@
   max-width: 60%;
 }
 
+/* ── Error/info messages ── */
 .content div#messages {
-  color: red;
-  font-size: 2em;
-  padding-left: 1em;
-  padding-top: 1em;
+  color: hsl(var(--failure-hue) 60% 46%);
+  font-size: 0.84rem;
+  padding: 0.5em 0.8em;
+  background: hsl(var(--failure-hue) 80% 97%);
+  border: 1px solid hsl(var(--failure-hue) 50% 86%);
+  border-radius: var(--radius-md);
+  line-height: 1.4;
 }
 
 .content label input[type="checkbox"] {
   vertical-align: bottom;
-  margin-right: 0.5em;
+  margin-right: 0.3em;
+  accent-color: var(--brand);
+}
+
+/* ── Media file grid ── */
+#ContentMedia {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65em;
+  padding: 0.25em 0;
+  list-style: none;
+}
+
+#ContentMedia li label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+  cursor: pointer;
+}
+
+#ContentMedia li figure {
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface2);
+  margin: 0;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+#ContentMedia li label:hover figure {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px hsl(var(--hue) 60% 60% / 0.18);
+  transform: translateY(-1px);
+}
+
+#ContentMedia li figure img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+#ContentMedia li figcaption {
+  font-size: 0.68em;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  color: var(--text2);
+  letter-spacing: 0.01em;
+}
+
+#ContentMedia .media-type-icon {
+  font-size: 2em;
+  opacity: 0.6;
+}
+
+#ContentMedia li input[type="checkbox"] {
+  align-self: flex-start;
+  accent-color: var(--brand);
+}
+
+/* ── Drag-to-grid affordance ── */
+body.designing #ContentMedia li,
+body.designing #ContentMedia li label {
+  cursor: grab;
+}
+
+body.designing #ContentMedia li:active,
+body.designing #ContentMedia li:active label {
+  cursor: grabbing;
+}
+
+/* ── Upload progress bar ── */
+.content-upload-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  font-size: 0.82rem;
+  color: var(--text2);
+}
+
+.content-upload-progress progress {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-full);
+  border: none;
+  accent-color: var(--brand);
+}
+
+/* ── Media hover preview enlargement (design mode only) ── */
+body.designing #ContentMedia li {
+  position: relative;
+  z-index: 0;
+}
+
+body.designing #ContentMedia li:hover {
+  z-index: 200;
+}
+
+body.designing #ContentMedia li:hover figure {
+  transform: scale(2.6);
+  transform-origin: center bottom;
+  box-shadow: var(--shadow-xl);
+  border-color: var(--brand);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }

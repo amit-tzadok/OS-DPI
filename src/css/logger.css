@@ -37,3 +37,8 @@ div.logging-indicator[logging] {
 .settings label.labeledInput:has(textarea) {
   width: 100%;
 }
+
+/* In the 2-column prop grid, let the textarea use the full input area */
+#designer label.labeledInput:not([hiddenLabel]):has(textarea) textarea {
+  width: 100%;
+}

@@ -1,25 +1,37 @@
+/* ── Actions panel wrapper ── */
 div.actions div.scroll {
   overflow-y: auto;
 }
 
+/* ── Actions table ── */
 .actions table {
   border-collapse: collapse;
   width: 100%;
+  font-size: 0.84rem;
 }
 
 .actions tr[used] {
-  font-weight: bold;
+  font-weight: 600;
 }
 
 .actions td {
-  border-left: 1px solid #999;
-  padding: 0.2em;
+  border-left: 1px solid var(--border-color);
+  padding: 0.32em 0.6em;
+  vertical-align: top;
+  color: var(--text1);
 }
 
 .actions th {
-  border: 1px solid #999;
-  border-top: 0px;
-  padding: 0.5em;
+  border: 1px solid var(--border-color);
+  border-top: 0;
+  padding: 0.5em 0.75em;
+  background-color: var(--surface3);
+  color: var(--text2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 .actions td.conditions {
@@ -27,7 +39,9 @@ div.actions div.scroll {
 }
 
 .actions div.condition + div.condition {
-  margin-top: 0.2em;
+  margin-top: 0.35em;
+  padding-top: 0.35em;
+  border-top: 1px dashed var(--border-color);
 }
 
 .actions div.condition label.labeledInput {
@@ -47,24 +61,46 @@ div.actions div.scroll {
 }
 
 .actions thead tr {
-  background: white;
+  background-color: var(--surface2);
 }
 
+/* ── Selected action row ── */
 #designer .actions tbody.settings {
-  border-top: 2px solid black;
-  border-left: 2px solid black;
-  border-right: 2px solid black;
-}
-.actions thead {
-  border-top: 0px;
+  border-top: 2px solid var(--brand);
+  border-left: 2px solid var(--brand);
+  border-right: 2px solid var(--brand);
+  border-radius: var(--radius-sm);
 }
 
+.actions thead {
+  border-top: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* ── Highlighted row ── */
 #designer .actions tbody[highlight] {
-  background-color: var(--secondary-fg);
+  background-color: hsl(var(--hue) 30% 97%);
+}
+
+@media (prefers-color-scheme: dark) {
+  #designer .actions tbody[highlight] {
+    background-color: hsl(var(--hue) 20% 14%);
+  }
+}
+
+html[color-scheme="dark"] #designer .actions tbody[highlight] {
+  background-color: hsl(var(--hue) 20% 14%);
 }
 
 .actions input[type="text"] {
   min-width: 100%;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* ── Hover row highlight ── */
+.actions tr:hover td {
+  background-color: var(--surface2);
 }

@@ -27,9 +27,7 @@ export function cueTarget(target, defaultValue, isGroup = false) {
       if (promise !== undefined) {
         promise
           .then(() => {})
-          .catch((error) => {
-            console.log("autoplay prevented", error);
-          });
+          .catch(() => {});
       }
     }
     fields = target.dataset;
@@ -152,6 +150,19 @@ export class PatternList extends DesignerPanel {
 
   settings() {
     return html`<div class=${this.CSSClasses("PatternList")} id=${this.id}>
+      <details class="panel-help">
+        <summary>About the Patterns tab</summary>
+        <div class="panel-help-body">
+          <p>Patterns define how buttons on the board are grouped and sequenced for switch scanning. Each <strong>Pattern Manager</strong> describes one complete scan sequence.</p>
+          <ul>
+            <li><strong>Default</strong> — mark one pattern as the default; it is used by Methods that don't specify a pattern.</li>
+            <li><strong>Pattern Group</strong> — clusters buttons together (e.g. all buttons in a row) so two-switch row-column scanning works. Set <em>Cycles</em> to control how many times the group repeats before auto-advancing.</li>
+            <li><strong>Pattern Selector</strong> — picks which buttons to include, with optional <em>Filter</em>, <em>Order By</em>, and <em>Group By</em> operators.</li>
+            <li>Press <strong>Animate</strong> on a Pattern Manager to preview the scan sequence in the canvas.</li>
+            <li>Leave a Pattern Manager with no children to scan every visible button in document order.</li>
+          </ul>
+        </div>
+      </details>
       ${this.unorderedChildren()}
     </div>`;
   }

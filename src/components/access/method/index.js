@@ -38,6 +38,20 @@ export class MethodChooser extends DesignerPanel {
 
   settings() {
     return html`<div class=${this.CSSClasses("MethodChooser")} id=${this.id}>
+      <details class="panel-help">
+        <summary>About the Methods tab</summary>
+        <div class="panel-help-body">
+          <p>Methods connect physical inputs — keyboard keys, pointer dwell, WebSocket messages, or timers — to actions on the board.</p>
+          <ul>
+            <li><strong>Active</strong> — only active Methods are running. Enable exactly the Method(s) you want in use.</li>
+            <li><strong>Pattern</strong> — which scan pattern this Method uses to identify the current target.</li>
+            <li><strong>Handlers</strong> — each handler watches for one input signal (e.g. <em>key up</em>, <em>pointer over</em>, <em>timer</em>) and fires when its conditions are met.</li>
+            <li><strong>Responses</strong> inside a handler define what happens: <em>Next</em> (advance scan), <em>Activate</em> (press current target), <em>Cue</em> / <em>Clear Cue</em>, <em>Emit</em> (send a named event to Actions), or <em>Start Timer</em>.</li>
+            <li><strong>Debounce</strong> settings (milliseconds) prevent accidental double-triggers on noisy input devices.</li>
+            <li>Add a <strong>Timer</strong> child to create a named countdown that Handlers can start and react to.</li>
+          </ul>
+        </div>
+      </details>
       ${this.unorderedChildren()}
     </div> `;
   }
@@ -431,10 +445,8 @@ const ResponderTypeMap = new Map([
 export class HandlerResponse extends TreeBaseSwitchable {
   Response = new Props.TypeSelect(ResponderTypeMap, { hiddenLabel: true });
 
-  /** @param {EventLike} event */
-  respond(event) {
-    console.log("no response for", event);
-  }
+  /** @param {EventLike} _event */
+  respond(_event) {}
 
   settings() {
     return html`<div class="Response">

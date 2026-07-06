@@ -1,61 +1,141 @@
+/* ── Menu container ── */
 .Menu {
   display: inline-block;
+  position: relative;
 }
+
 .Menu [hidden] {
   display: none;
 }
+
+/* ── Trigger button ── */
 .Menu > button {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
   position: relative;
-  border-radius: 0.5em;
-  margin-right: 0.3em;
+  border-radius: var(--radius-md);
+  margin-right: 0.2em;
+  padding: 0.42em 0.9em;
+  border: 1px solid transparent;
+  color: var(--text2);
+  background-color: transparent;
+  min-height: 2.1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
+
+.Menu > button:hover {
+  background: var(--surface3);
+  border-color: var(--border-color);
+  color: var(--text1);
+  box-shadow: var(--shadow-xs);
+}
+
+.Menu > button:active {
+  background: var(--surface4);
+}
+
+/* ── Dropdown panel ── */
 .Menu ul {
   display: flex;
   flex-direction: column;
   position: absolute;
-  margin: 0;
-  padding: 7px 4px;
-  background-color: var(--surface2);
-  z-index: 100;
-  width: 8em;
-  border: 1px solid var(--brand);
+  margin: 4px 0 0;
+  padding: 0.4em;
+  background-color: var(--surface1);
+  z-index: 200;
+  min-width: 15em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   left: 50%;
   transform: translate(-50%, 0%);
+  gap: 2px;
+  max-height: 72vh;
+  overflow-y: auto;
+  animation: menu-appear 0.14s cubic-bezier(0.2, 0, 0, 1);
 }
+
+@keyframes menu-appear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* ── Menu items ── */
 .Menu li {
-  margin: 2px;
+  margin: 0;
   display: flex;
 }
+
 .Menu li :has(button[aria-disabled="true"]) {
-  opacity: 0.5;
+  opacity: 0.45;
 }
+
+/* ── Divider with label ── */
 .Menu li[divider] {
   position: relative;
+  flex-direction: column;
 }
+
 .Menu li[divider]::before {
   content: attr(divider);
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   width: 100%;
   display: block;
-  text-align: center;
-  border-top: 1px solid var(--text1);
-  border-bottom: 1px solid var(--text1);
-  background-color: var(--surface2);
-  margin-bottom: 0.5em;
+  text-align: left;
+  padding: 0.4em 0.75em 0.2em;
+  border-top: 1px solid var(--border-color);
+  color: var(--text2);
+  margin-top: 0.2em;
+  margin-bottom: 0.1em;
 }
+
+/* ── Item buttons ── */
 .Menu li button {
   flex: 1;
   border: 0;
-  padding: 2px;
-  background-color: inherit;
+  padding: 0.5em 0.85em;
+  background-color: transparent;
   width: 100% !important;
-  border-radius: 0;
+  border-radius: var(--radius-md);
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text1);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+  min-height: 2.1rem;
+  display: flex;
+  align-items: center;
 }
+
 .Menu li button:hover {
-  outline: 2px dotted var(--brand);
+  background: var(--surface3);
+  color: var(--text1);
+  outline: none;
 }
+
+.Menu li button:active {
+  background: var(--surface4);
+}
+
 .Menu li button[aria-disabled="true"] {
-  opacity: 0.5;
+  opacity: 0.45;
+  cursor: default;
 }

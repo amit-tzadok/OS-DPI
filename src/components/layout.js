@@ -1,6 +1,7 @@
 import { html } from "uhtml";
 import { TreeBase } from "./treebase";
 import { DesignerPanel } from "./designer";
+import * as Props from "./props";
 import "css/layout.css";
 import Globals from "app/globals";
 import { TabPanel } from "./tabcontrol";
@@ -44,7 +45,13 @@ export class Layout extends DesignerPanel {
   static tableName = "layout";
   static defaultValue = emptyPage;
 
+  uiScale = new Props.Float(0.7);
+
+  /** @type {string} */
+  _searchQuery = "";
+
   settings() {
+    const self = this;
     return html`<div
       class=${this.CSSClasses("layout")}
       help="Layout tab"
@@ -57,8 +64,73 @@ export class Layout extends DesignerPanel {
         }
       }}
     >
+      <details class="panel-help">
+        <summary>About the Layout tab</summary>
+        <div class="panel-help-body">
+          <p>Build your board's visual structure here. The tree below shows every component on the board — pages, containers, buttons, displays, and more.</p>
+          <ul>
+            <li>Expand any item to edit its properties.</li>
+            <li>Use the <strong>＋ Add…</strong> selector inside a component to add children (Stacks, Grids, Buttons, etc.).</li>
+            <li>Use <strong>Edit → Duplicate</strong> or right-click a button on the canvas to copy, move, or delete it.</li>
+            <li>Press <kbd>Ctrl+H</kbd> to highlight the selected component on the canvas.</li>
+            <li>Use the search box below to filter components by name.</li>
+          </ul>
+        </div>
+      </details>
+      <div class="layout-search">
+        <input
+          type="search"
+          placeholder="Search components…"
+          aria-label="Search layout components"
+          .value=${this._searchQuery}
+          @input=${(/** @type {InputEvent} */ e) => {
+            const input = /** @type {HTMLInputElement} */ (e.target);
+            self._searchQuery = input.value;
+            self._applySearch(input.value);
+          }}
+        />
+      </div>
       ${this.children[0].settings()}
     </div>`;
+  }
+
+  /**
+   * Show/hide .settings elements based on search query
+   * @param {string} query
+   */
+  _applySearch(query) {
+    const panel = document.getElementById(this.id);
+    if (!panel) return;
+    const q = query.trim().toLowerCase();
+    const allSettings = /** @type {NodeListOf<HTMLElement>} */ (
+      panel.querySelectorAll(".settings")
+    );
+    if (!q) {
+      // Show everything
+      for (const el of allSettings) {
+        el.style.display = "";
+      }
+      return;
+    }
+    // First pass: determine which elements match
+    const matches = new Set();
+    for (const el of allSettings) {
+      const summary = el.querySelector("summary");
+      const text = (summary?.textContent || el.textContent || "").toLowerCase();
+      if (text.includes(q)) {
+        matches.add(el);
+        // Also mark all ancestors
+        let parent = el.parentElement;
+        while (parent && parent !== panel) {
+          if (parent.classList.contains("settings")) matches.add(parent);
+          parent = parent.parentElement;
+        }
+      }
+    }
+    // Second pass: show/hide
+    for (const el of allSettings) {
+      el.style.display = matches.has(el) ? "" : "none";
+    }
   }
 
   allowedChildren = ["Page"];

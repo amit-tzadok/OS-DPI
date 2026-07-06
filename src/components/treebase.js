@@ -5,6 +5,52 @@ import { styleString } from "./style";
 import { errorHandler } from "./errors";
 import { friendlyName } from "./names";
 
+/** Human-readable descriptions for each component type shown in the Add dropdown */
+const componentDescriptions = {
+  Grid: "Grid — rows × columns of buttons",
+  Stack: "Stack — row or column layout",
+  Button: "Button — single AAC symbol button",
+  Speech: "Speech — speaks when buttons are pressed",
+  Display: "Display — shows the spoken text",
+  Audio: "Audio — plays a sound file",
+  Page: "Page — a full-screen board page",
+  Gap: "Gap — empty spacer",
+  VSD: "Visual Scene — photo with hotspot buttons",
+  TabControl: "Tabs — tabbed layout container",
+  TabPanel: "Tab Panel — one tab's content",
+  ModalDialog: "Modal Dialog — popup overlay",
+  Radio: "Radio Buttons — choose one option",
+  Logger: "Logger — debug log viewer",
+  Option: "Option — list item",
+  GridFilter: "Grid Filter — filter grid content",
+  // Access method components
+  HandlerCondition: "Condition — test before firing a response",
+  HandlerKeyCondition: "Key Condition — test a keyboard key state",
+  HandlerResponse: "Response — action triggered by an access event",
+  PointerHandler: "Pointer Handler — respond to pointer/dwell events",
+  KeyHandler: "Key Handler — respond to keyboard events",
+  SocketHandler: "Socket Handler — respond to WebSocket messages",
+  TimerHandler: "Timer Handler — respond to a repeating timer",
+  Method: "Method — an access input method",
+  Timer: "Timer — named countdown timer",
+  PatternGroup: "Pattern Group — group of switch scan targets",
+  PatternSelector: "Pattern Selector — choose scan pattern",
+  Filter: "Filter — filter rows by field value",
+  OrderBy: "Order By — sort rows by a field",
+  GroupBy: "Group By — group rows by a field",
+  ResponderNext: "Responder: Next — advance to next scan target",
+  ResponderActivate: "Responder: Activate — activate current target",
+  ResponderCue: "Responder: Cue — apply a visual cue",
+  ResponderClearCue: "Responder: Clear Cue — remove a visual cue",
+  ResponderEmit: "Responder: Emit — send a named event",
+  ResponderStartTimer: "Responder: Start Timer — start a named timer",
+  Cue: "Cue — visual highlight for scan targets",
+  CueCss: "Cue CSS — apply CSS class as a cue",
+  CueOverlay: "Cue Overlay — overlay color as a cue",
+  CueFill: "Cue Fill — fill color as a cue",
+  CueCircle: "Cue Circle — circular highlight cue",
+};
+
 export class TreeBase {
   /** @type {TreeBase[]} */
   children = [];
@@ -46,6 +92,9 @@ export class TreeBase {
   }
 
   designer = {};
+
+  /** Multi-selection state — ids of currently-selected buttons */
+  static selectedIds = new Set();
 
   /** A mapping from the external class name to the class */
   static nameToClass = new Map();
@@ -289,7 +338,59 @@ export class TreeBase {
    */
   settingsSummary() {
     const name = Object.hasOwn(this, "name") ? this["name"].value : "";
-    return html`<h3>${friendlyName(this.className)} ${name}</h3>`;
+    const self = this;
+    const allowedChildren = this.allowedChildren;
+
+    let addControl = html``;
+    if (allowedChildren.length === 1) {
+      const cls = allowedChildren[0];
+      const desc = componentDescriptions[cls] || cls;
+      addControl = html`<button
+        class="treebase tree-add"
+        title=${"Add " + desc}
+        @click=${(/** @type {MouseEvent} */ e) => {
+          e.stopPropagation();
+          TreeBase.create(cls, self);
+          self.update();
+        }}
+      >+ Add</button>`;
+    } else if (allowedChildren.length > 1) {
+      addControl = html`<select
+        class="tree-add-select"
+        title="Add a child component"
+        @click=${(/** @type {MouseEvent} */ e) => e.stopPropagation()}
+        @change=${(/** @type {Event} */ e) => {
+          e.stopPropagation();
+          const select = /** @type {HTMLSelectElement} */ (e.target);
+          const cls = select.value;
+          if (cls) {
+            TreeBase.create(cls, self);
+            self.update();
+            select.value = "";
+          }
+        }}
+      >
+        <option value="">＋ Add…</option>
+        ${allowedChildren.map((cls) => html`<option value=${cls}>${componentDescriptions[cls] || cls}</option>`)}
+      </select>`;
+    }
+
+    let deleteButton = html``;
+    if (this.allowDelete) {
+      deleteButton = html`<button
+        class="treebase tree-delete"
+        title="Delete this component"
+        @click=${(/** @type {MouseEvent} */ e) => {
+          e.stopPropagation();
+          const parent = self.parent;
+          self.remove();
+          if (parent) parent.update();
+        }}
+      >✕</button>`;
+    }
+
+    return html`<h3>${friendlyName(this.className)} ${name}</h3
+    ><span class="tree-actions">${addControl}${deleteButton}</span>`;
   }
 
   /**
@@ -377,6 +478,19 @@ export class TreeBase {
   swap(i, j) {
     const A = this.children;
     [A[i], A[j]] = [A[j], A[i]];
+  }
+
+  /**
+   * Move child at `from` to a position before or after child at `to`
+   * @param {number} from
+   * @param {number} to
+   * @param {'before'|'after'} position
+   */
+  moveChild(from, to, position) {
+    const [item] = this.children.splice(from, 1);
+    const insertAt = position === "before" ? to : to + 1;
+    const adjusted = from < to ? insertAt - 1 : insertAt;
+    this.children.splice(adjusted, 0, item);
   }
 
   /**

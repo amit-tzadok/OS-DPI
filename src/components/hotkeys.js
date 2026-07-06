@@ -59,7 +59,6 @@ function focusTabs() {
   const currentTab = /** @type {HTMLButtonElement} */ (
     document.querySelector("#designer #tabs .buttons button[active]")
   );
-  console.log({ currentTab });
   if (currentTab) {
     currentTab.focus();
     return;

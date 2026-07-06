@@ -1,35 +1,67 @@
-  .suggest {
-    position: relative;
-    display: inline-block;
-    font-family: monospace;
-  }
+.suggest {
+  position: relative;
+  display: inline-block;
+  font-family: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
+}
 
-  .suggest input {
-    width: 100%;
-  }
+.suggest input {
+  width: 100%;
+}
 
-  .suggest div {
-    position: absolute;
-    border: 1px solid black;
-    background-color: white;
-    z-index: 10;
-  }
+.suggest div {
+  position: absolute;
+  border: 1px solid var(--border-color);
+  background-color: var(--surface1);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-md);
+  z-index: 100;
+  animation: suggest-appear 0.12s cubic-bezier(0.2, 0, 0, 1);
+  overflow: hidden;
+}
 
-  .suggest div:empty {
-    display: none;
+@keyframes suggest-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
-  .suggest ul {
-    list-style-type: none;
-    margin: 0;
-    padding: 10px;
-  }
+.suggest div:empty {
+  display: none;
+}
 
-  .suggest li[selected] {
-    background-color: #ccc;
-  }
+.suggest ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0.35em;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
 
-  .suggest input {
-    font-family: monospace;
-    font-size: 15px;
-  }
+.suggest li {
+  border-radius: var(--radius-sm);
+  padding: 0.32em 0.65em;
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.suggest li[selected] {
+  background-color: var(--surface3);
+  color: var(--text1);
+  font-weight: 500;
+}
+
+.suggest li:hover:not([selected]) {
+  background-color: var(--surface2);
+}
+
+.suggest input {
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+  font-size: 0.875rem;
+}

@@ -9,11 +9,21 @@ export class ChangeStack {
   /** @type {ExternalRep[]} */
   stack = [];
 
+  /** Action labels parallel to stack entries */
+  /** @type {string[]} */
+  labels = [];
+
+  /**
+   * Label to attach to the next saved state.
+   * Set this before triggering an update that calls save().
+   * @type {string}
+   */
+  pendingLabel = "";
+
   /* boundary between undo and redo. Points to the first cell beyond the undos */
   top = 0;
 
   get canUndo() {
-    console.log("canUndo", this.top > 1);
     return this.top > 1;
   }
 
@@ -21,12 +31,25 @@ export class ChangeStack {
     return this.top < this.stack.length;
   }
 
+  /** Human-readable description of the action that would be undone */
+  get undoLabel() {
+    return this.top > 1 ? this.labels[this.top - 1] : "";
+  }
+
+  /** Human-readable description of the action that would be redone */
+  get redoLabel() {
+    return this.top < this.stack.length ? this.labels[this.top] : "";
+  }
+
   /** Save a state for possible undo
    * @param {ExternalRep} state
    */
   save(state) {
     this.stack.splice(this.top);
+    this.labels.splice(this.top);
     this.stack.push(state);
+    this.labels.push(this.pendingLabel || "");
+    this.pendingLabel = "";
     this.top = this.stack.length;
   }
 
@@ -76,7 +99,6 @@ export class ChangeStack {
       // I think this happens only for the components that dynamically change their class
       if (current instanceof TreeBaseSwitchable) {
         // switch the class and force the props to their old values
-        console.log("change class");
         current.replace(previous.className, previous.props);
       } else {
         throw new Error(
@@ -95,7 +117,6 @@ export class ChangeStack {
         current[propName].text != pprops[propName]
       ) {
         current[propName].set(pprops[propName]);
-        console.log("change prop");
         return true;
       }
     }
@@ -110,15 +131,9 @@ export class ChangeStack {
       for (let i = 0; i < pc.length; i++) {
         if (!this.equal(cc[i], pc[i])) {
           // pc[i] is the one that got deleted. Create it
-          console.log(
-            "undo delete",
-            current.toObject({ omittedProps: [], includeIds: true }),
-            pc[i],
-          );
           const deleted = TreeBase.fromObject(pc[i], current, { useId: true });
           if (i < pc.length) {
             // move it
-            console.log("move it", i);
             deleted.moveTo(i);
           }
           return true;
@@ -127,7 +142,6 @@ export class ChangeStack {
       throw new Error("Undo: delete failed");
     } else if (cc.length == pc.length + 1) {
       // the added one must be last
-      console.log("undo add", cc[cc.length - 1]);
       cc[cc.length - 1].remove();
       return true;
     } else if (cc.length == pc.length) {
@@ -138,7 +152,6 @@ export class ChangeStack {
       }
       if (diffs.length == 2) {
         // reordered
-        console.log("swap", diffs[0], diffs[1]);
         current.swap(diffs[0], diffs[1]);
         return true;
       } else if (diffs.length == 1) {

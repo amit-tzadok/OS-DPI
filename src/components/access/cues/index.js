@@ -23,6 +23,19 @@ export class CueList extends DesignerPanel {
 
   settings() {
     return html`<div class=${this.CSSClasses("CueList")} id=${this.id}>
+      <details class="panel-help">
+        <summary>About the Cues tab</summary>
+        <div class="panel-help-body">
+          <p>Cues define the visual (and optional audio) feedback applied to buttons when they are highlighted during switch scanning.</p>
+          <ul>
+            <li><strong>Name</strong> — a label for this cue, shown in the Cue selector elsewhere.</li>
+            <li><strong>Cue Type</strong> — how the button is highlighted: <em>Overlay</em> (color wash), <em>Fill</em> (animated fill bar), <em>Circle</em> (sweeping ring), or <em>CSS</em> (custom stylesheet).</li>
+            <li><strong>Default</strong> — mark one cue as the default; it is used wherever no specific cue is set.</li>
+            <li><strong>Speech / Audio</strong> — optionally speak a content field or play an audio file when this cue appears.</li>
+            <li>Assign cues to scan targets in the <strong>Patterns</strong> and <strong>Methods</strong> tabs.</li>
+          </ul>
+        </div>
+      </details>
       ${this.unorderedChildren()}
     </div>`;
   }

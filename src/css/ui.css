@@ -1,26 +1,54 @@
-  .movement {
-    margin-top: 0.5em;
-  }
-  .movement button {
-  }
-  button svg {
-    object-fit: contain;
-    width: 1em;
-    height: 1em;
-    vertical-align: middle;
-    margin: -4px;
-  }
-  .access button {
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 0.5em;
-    border: outset;
-  }
-  .access fieldset {
-    margin-bottom: 0.5em;
-  }
-  .access ol {
-    padding-inline-start: 10px;
-  }
-  .access ul {
-    padding-inline-start: 10px;
-  }
+.movement {
+  margin-top: 0.5em;
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.movement button {
+  /* inherited from treebase / global button styles */
+}
+
+button svg {
+  object-fit: contain;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  margin: -4px;
+}
+
+/* ── Access method fieldsets / controls ── */
+.access button {
+  background-color: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  padding: 0.28em 0.65em;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text2);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.access button:hover {
+  background-color: var(--surface3);
+  border-color: var(--border-color-strong);
+  color: var(--text1);
+}
+
+.access fieldset {
+  margin-bottom: 0.6em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.5em 0.7em;
+}
+
+.access ol {
+  padding-inline-start: 12px;
+}
+
+.access ul {
+  padding-inline-start: 12px;
+}

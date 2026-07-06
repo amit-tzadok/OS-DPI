@@ -44,22 +44,21 @@ export class DB {
           }
         }
       },
-      blocked(currentVersion, blockedVersion, event) {
-        console.log("blocked", { currentVersion, blockedVersion, event });
-      },
+      blocked(_currentVersion, _blockedVersion, _event) {},
       blocking(_currentVersion, _blockedVersion, _event) {
         window.location.reload();
       },
-      terminated() {
-        console.log("terminated");
-      },
+      terminated() {},
     });
+    /** @type {Function[]} */
     this.updateListeners = [];
     this.designName = "";
     this.fileName = "";
     this.fileHandle = null;
     this.fileVersion = 0.0;
     this.fileUid = "";
+    /** Track whether there are unsaved changes for beforeunload warning */
+    this.hasUnsavedChanges = false;
   }
 
   /** set the name for the current design
@@ -85,9 +84,9 @@ export class DB {
     }
     const mst = tx.objectStore("media");
     for await (const cursor of mst.iterate()) {
-      if (cursor && cursor.key[0] == this.designName) {
+      if (cursor && (/** @type {IDBValidKey[]} */ (cursor.key))[0] == this.designName) {
         const record = { ...cursor.value };
-        const key = cursor.key;
+        const key = /** @type {IDBValidKey[]} */ (cursor.key);
         cursor.delete();
         key[0] = newName;
         mst.put(record, key);
@@ -112,7 +111,7 @@ export class DB {
   async names() {
     const db = await this.dbPromise;
     const keys = await db.getAllKeysFromIndex("store5", "by-name");
-    const result = [...new Set(keys.map((key) => key.valueOf()[0]))];
+    const result = [...new Set(keys.map((key) => (/** @type {[string, string]} */ (key))[0]))];
     return result;
   }
 
@@ -201,6 +200,7 @@ export class DB {
    * @param {Object} data
    */
   async write(type, data) {
+    this.hasUnsavedChanges = true;
     const db = await this.dbPromise;
     // normalize the data for unicode issues
     data = JSON.parse(
@@ -448,12 +448,12 @@ export class DB {
   async convertDesignToBlob() {
     const db = await this.dbPromise;
     // collect the parts of the design
-    const layout = Globals.layout.toObject();
-    const actions = Globals.actions.toObject();
+    const layout = Globals.layout?.toObject() ?? {};
+    const actions = Globals.actions?.toObject() ?? [];
     const content = await this.read("content");
-    const method = Globals.methods.toObject();
-    const pattern = Globals.patterns.toObject();
-    const cues = Globals.cues.toObject();
+    const method = Globals.methods?.toObject() ?? {};
+    const pattern = Globals.patterns?.toObject() ?? {};
+    const cues = Globals.cues?.toObject() ?? {};
 
     const zipargs = {
       "layout.json": strToU8(JSON.stringify(layout)),
@@ -474,7 +474,8 @@ export class DB {
       if (record) {
         const contentBuf = await record.content.arrayBuffer();
         const contentArray = new Uint8Array(contentBuf);
-        zipargs[key[1]] = contentArray;
+        const mediaKey = /** @type {[string, string]} */ (key);
+        (/** @type {Record<string, Uint8Array>} */ (zipargs))[mediaKey[1]] = contentArray;
       }
     }
 
@@ -506,6 +507,7 @@ export class DB {
     try {
       await fileSave(this.convertDesignToBlob(), options, this.fileHandle);
       await db.put("saved", { name: this.designName });
+      this.hasUnsavedChanges = false;
     } catch (error) {
       console.error("Export failed");
       console.error(error);
@@ -612,11 +614,11 @@ export class DB {
   async listMedia() {
     const db = await this.dbPromise;
     const keys = (await db.getAllKeys("media")).filter(
-      (key) => key[0] == this.designName, //only show resources from this design
+      (key) => (/** @type {IDBValidKey[]} */ (key))[0] == this.designName, //only show resources from this design
     );
     const result = [];
     for (const key of keys) {
-      result.push(key[1].toString());
+      result.push(String((/** @type {IDBValidKey[]} */ (key))[1]));
     }
     return result;
   }
@@ -631,8 +633,8 @@ export class DB {
     for await (const cursor of mst.iterate()) {
       if (
         cursor &&
-        cursor.key[0] == this.designName &&
-        names.includes(cursor.key[1])
+        (/** @type {IDBValidKey[]} */ (cursor.key))[0] == this.designName &&
+        names.includes(/** @type {string} */ ((/** @type {IDBValidKey[]} */ (cursor.key))[1]))
       ) {
         cursor.delete();
       }
@@ -694,7 +696,7 @@ export async function unPackDesign(blob) {
       try {
         obj = JSON.parse(text);
         let type = fname.split(".")[0];
-        result[type] = obj;
+        (/** @type {Record<string, any>} */ (result))[type] = obj;
       } catch (e) {
         console.trace(e);
       }
@@ -742,5 +744,5 @@ const mimetypes = {
 function mime(fname) {
   const extension = /\.[-a-zA-Z0-9]+$/.exec(fname);
   if (!extension) return false;
-  return mimetypes[extension] || false;
+  return (/** @type {Record<string, string>} */ (mimetypes))[extension[0]] || false;
 }

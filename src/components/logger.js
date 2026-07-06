@@ -144,6 +144,16 @@ TreeBase.register(Logger, "Logger");
 export async function SaveLog() {
   let toSave = await db.readLog();
   if (toSave.length > 0) {
+    await pleaseWait(saveContent("log", toSave, "csv"));
+  } else {
+    Globals.error.report("No log records to be saved.");
+    Globals.state.update();
+  }
+}
+
+export async function SaveLogXLSX() {
+  let toSave = await db.readLog();
+  if (toSave.length > 0) {
     await pleaseWait(saveContent("log", toSave, "xlsx"));
   } else {
     Globals.error.report("No log records to be saved.");

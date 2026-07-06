@@ -66,14 +66,24 @@ export class KeyHandler extends Handler {
       return !designer || !designer.contains(target);
     }
 
+    // don't capture keys typed into text fields (e.g. the suggestion
+    // steering input) — otherwise preventDefault blocks all typing
+    function notEditable({ target }) {
+      return !(
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.matches("input, textarea, select"))
+      );
+    }
+
     // build the debounced key event stream
     let events$ = /** @type RxJs.Observable<KeyboardEvent> */ (
       // start with the key down stream
       keyDown$.pipe(
         // merge with the key up stream
         RxJs.mergeWith(keyUp$),
-        // ignore events from the designer
-        RxJs.filter((e) => notDesigner(e)),
+        // ignore events from the designer and from text fields
+        RxJs.filter((e) => notDesigner(e) && notEditable(e)),
         // prevent default actions
         RxJs.tap((e) => e.preventDefault()),
         // remove any repeats

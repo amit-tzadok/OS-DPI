@@ -1,26 +1,100 @@
+/* ── Layout panel search ── */
+.layout-search {
+  padding: 0.6em 1.15em 0.5em;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface1);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.layout-search input {
+  width: 100%;
+  padding: 0.32em 0.85em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: var(--surface1);
+  color: var(--text1);
+  font-size: 0.85rem;
+  box-sizing: border-box;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.layout-search input:hover {
+  border-color: var(--border-color-strong);
+}
+
+.layout-search input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px hsl(var(--hue) 70% 60% / 0.22);
+}
+
+/* ── Empty container state ── */
 div.empty {
-  background-color: rgba(15, 15, 15, 0.3);
+  background-color: var(--surface2);
   justify-content: center;
   align-items: center;
 }
 
+/* ── Page-level empty state message ── */
 div.page.empty::before {
-  font-size: 2em;
-  content: "To learn about OS-DPI use the Help menu on the right.";
+  font-size: 0.95em;
+  font-weight: 400;
+  color: var(--text2);
+  content:
+    "Your board is empty."
+    "\A"
+    "\A"
+    "① In the Layout tab → click  + Add…  on a component to add a Grid or Stack"
+    "\A"
+    "② In the Content tab → click  Load media  to import images or audio"
+    "\A"
+    "③ Drag media from the Content panel onto any button in your board";
+  white-space: pre;
+  max-width: 34em;
+  text-align: left;
+  line-height: 1.85;
+  padding: 1.5rem 1.75rem;
+  border: 1.5px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--surface1);
+  box-shadow: var(--shadow-sm);
+  /* reset properties inherited from the generic div.empty::before rule */
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 1;
 }
 
+/* ── Generic empty container label ── */
 div.empty::before {
   content: "Empty";
+  color: var(--text2);
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.5;
 }
 
+/* ── Component highlight in designer preview ── */
 body.designing #UI [highlight="component"] {
-  border: 2px dashed red;
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+  box-shadow: 0 0 0 4px hsl(var(--hue) 60% 60% / 0.14);
 }
 
 body.designing #UI [highlight="parent"] {
-  border: 2px dotted red;
+  outline: 1px dashed hsl(var(--hue) 55% 60% / 0.75);
+  outline-offset: -1px;
 }
 
+/* ── Layout tree summary header ── */
 #designer .layout summary {
-  border-bottom: 1px solid #d0d0d0;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.35em;
+  margin-bottom: 0.25em;
 }

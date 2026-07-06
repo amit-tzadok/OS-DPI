@@ -17,7 +17,7 @@ export function postRender() {
 const safe = true;
 
 /** @param {string} id
- * @param {TreeBase} component
+ * @param {{ safeTemplate: () => import("uhtml").Hole, className: string }} component
  */
 export function safeRender(id, component) {
   const where = document.getElementById(id);

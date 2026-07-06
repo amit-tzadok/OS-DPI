@@ -1,3 +1,4 @@
+/* ── Visual Scene Display ── */
 div.vsd {
   position: relative;
   display: flex;
@@ -7,16 +8,28 @@ div.vsd {
   align-content: center;
 }
 
+/* ── Hotspot buttons ── */
 div.vsd button {
   position: absolute;
   background-color: transparent;
   box-shadow:
-    0 0 0 1px white,
-    0 0 0 2px red;
-  border-radius: 5px;
+    0 0 0 2px var(--surface1),
+    0 0 0 4px var(--brand);
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
   align-items: center;
+  transition:
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+div.vsd button:hover {
+  box-shadow:
+    0 0 0 2px var(--surface1),
+    0 0 0 4px var(--brand),
+    var(--shadow-md);
+  transform: scale(1.02);
 }
 
 div.vsd button[invisible] {
@@ -42,21 +55,37 @@ div.vsd div.markers {
 div.vsd div.markers button:focus-within {
   opacity: 1;
 }
+
 div.vsd button span {
-  background-color: white;
+  background-color: var(--surface1);
+  border-radius: var(--radius-sm);
+  padding: 0.1em 0.4em;
+  font-size: 0.85em;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
 }
+
 div.vsd div.markers button {
   opacity: 0;
+  transition: opacity var(--transition-fast);
 }
+
 div.vsd.show div.markers button {
   opacity: 1;
 }
 
 span.coords {
   background-color: var(--surface1);
-  color: var(--text1);
+  color: var(--brand);
   display: none;
+  font-size: 0.75em;
+  font-weight: 600;
+  font-family: monospace;
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
 }
+
 .designing span.coords {
   display: inline-block;
 }

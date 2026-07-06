@@ -13,12 +13,14 @@ body.HeadMouse .tracky-mouse-pointer {
   display: block;
 }
 .tracky-mouse-ui {
-  background-color: rgb(195, 173, 230);
-  color: black;
+  background-color: var(--surface2);
+  color: var(--text1);
+  border: 1px solid var(--border-color);
   padding: 10px;
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   max-width: 600px;
   display: none;
+  box-shadow: var(--shadow-md);
 }
 .tracky-mouse-ui.show {
   display: block;
@@ -26,7 +28,7 @@ body.HeadMouse .tracky-mouse-pointer {
 }
 .tracky-mouse-canvas {
   width: 100%;
-  background-color: rgba(15, 0, 20, 0.5);
+  background-color: var(--surface4);
 }
 .tracky-mouse-ui label {
   display: block;
@@ -38,4 +40,9 @@ body.HeadMouse .tracky-mouse-pointer {
 #tracky-mouse-close {
   right: 0;
   position: absolute;
+  border-radius: var(--radius-sm);
+  padding: 0.25em 0.6em;
+  background: var(--surface3);
+  border: 1px solid var(--border-color);
+  color: var(--text2);
 }

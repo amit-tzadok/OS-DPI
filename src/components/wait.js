@@ -28,11 +28,11 @@ export default async function wait(promise, message = "Please wait") {
       render(
         div,
         html`<div>
-          <p class="error">${e.message}</p>
+          <p class="error">${e instanceof Error ? e.message : String(e)}</p>
           <button
             @click=${() => {
               div.remove();
-              reject(e.message);
+              reject(e instanceof Error ? e.message : String(e));
             }}
           >
             OK

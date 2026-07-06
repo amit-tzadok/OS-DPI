@@ -15,8 +15,9 @@ import pleaseWait from "components/wait";
 import { DB, unPackDesign } from "app/db";
 import { Designer } from "./designer";
 import { readSheetFromBlob, saveContent } from "app/spreadsheet";
-import { SaveLog, ClearLog } from "./logger";
+import { SaveLog, SaveLogXLSX, ClearLog } from "./logger";
 import { friendlyName, wikiName } from "./names";
+import { showToast } from "./errors";
 
 import { workerUpdateButton } from "components/serviceWorker";
 import { monkey } from "components/monkeyTest";
@@ -114,13 +115,11 @@ export function getPanelMenuItems(type) {
 
   // Ask that tab which component is focused
   if (!panel) {
-    console.log("no panel");
     return { child: [], parent: [] };
   }
   const component =
     TreeBase.componentFromId(panel.lastFocused) || panel.children[0] || panel;
   if (!component) {
-    console.log("no component");
     return { child: [], parent: [] };
   }
   if (component === panel) type = "add";
@@ -182,6 +181,19 @@ export function getPanelMenuItems(type) {
 function getFileMenuItems(bar) {
   return [
     new MenuItem({
+      label: "Open",
+      callback: () => {
+        bar.designListDialog.open();
+      },
+    }),
+    new MenuItem({
+      label: "New",
+      callback: async () => {
+        const name = await db.uniqueName("new");
+        window.open(`#${name}`, "_blank", `noopener=true`);
+      },
+    }),
+    new MenuItem({
       label: "Import File",
       callback: async () => {
         const local_db = new DB();
@@ -195,7 +207,10 @@ function getFileMenuItems(bar) {
           .then(() => {
             window.open(`#${local_db.designName}`, "_blank", `noopener=true`);
           })
-          .catch((e) => console.log(e));
+          .catch((e) => {
+            if (e?.name !== "AbortError")
+              showToast(e?.message || "Import failed");
+          });
       },
     }),
     new MenuItem({
@@ -203,26 +218,15 @@ function getFileMenuItems(bar) {
       callback: () => bar.importURLDialog.open(),
     }),
     new MenuItem({
-      label: "Export",
+      label: "Download Backup",
+      title: "Save a copy of this design to your computer (.osdpi file)",
       callback: () => {
         db.saveDesign();
       },
     }),
     new MenuItem({
-      label: "New",
-      callback: async () => {
-        const name = await db.uniqueName("new");
-        window.open(`#${name}`, "_blank", `noopener=true`);
-      },
-    }),
-    new MenuItem({
-      label: "Open",
-      callback: () => {
-        bar.designListDialog.open();
-      },
-    }),
-    new MenuItem({
-      label: "Unload",
+      label: "Save & Close",
+      title: "Download a backup, remove from browser storage, and close this window",
       callback: async () => {
         const saved = await db.saved();
         if (saved.indexOf(db.designName) < 0) {
@@ -230,7 +234,7 @@ function getFileMenuItems(bar) {
             await db.saveDesign();
           } catch (e) {
             if (e instanceof DOMException) {
-              console.log("canceled save");
+              // user canceled the save dialog — ignore
             } else {
               throw e;
             }
@@ -241,16 +245,9 @@ function getFileMenuItems(bar) {
       },
     }),
     new MenuItem({
-      label: "Unload...",
-      callback: () => {
-        bar.designListDialog.unload();
-      },
-    }),
-    new MenuItem({
       label: "Refetch design",
       callback: async () => {
         await db.reloadDesignFromOriginalURL();
-        console.log("refetched");
       },
     }),
     new MenuItem({
@@ -303,8 +300,6 @@ function getFileMenuItems(bar) {
             await db.write("content", result);
             Globals.data.setContent(result);
             Globals.state.update();
-          } else {
-            console.log("no file to reload");
           }
         }),
     }),
@@ -318,44 +313,18 @@ function getFileMenuItems(bar) {
       },
     }),
     new MenuItem({
-      label: "Load media",
-      title: "Load audio or images into the design",
-      callback: async () => {
-        try {
-          const files = await fileOpen({
-            description: "Media files",
-            mimeTypes: ["image/*", "audio/*", "video/mp4", "video/webm"],
-            multiple: true,
-          });
-          for (const file of files) {
-            await db.addMedia(file, file.name);
-            if (file.type.startsWith("image/")) {
-              for (const img of document.querySelectorAll(
-                `img[dbsrc="${file.name}"]`,
-              )) {
-                /** @type {ImgDb} */ (img).refresh();
-              }
-            }
-            if (file.type.startsWith("video/")) {
-              for (const img of document.querySelectorAll(
-                `video[dbsrc="${file.name}"]`,
-              )) {
-                /** @type {ImgDb} */ (img).refresh();
-              }
-            }
-          }
-        } catch {
-          // ignore the error
-        }
-        Globals.state.update();
-      },
-    }),
-    new MenuItem({
-      label: "Save logs",
-      title: "Save any logs as spreadsheets",
+      label: "Save logs (CSV)",
+      title: "Save any logs as a CSV file",
       divider: "Logs",
       callback: async () => {
         SaveLog();
+      },
+    }),
+    new MenuItem({
+      label: "Save logs (Excel)",
+      title: "Save any logs as an Excel spreadsheet",
+      callback: async () => {
+        SaveLogXLSX();
       },
     }),
     new MenuItem({
@@ -389,6 +358,8 @@ async function copyComponent(cut = false) {
         component.toObject({ omittedProps: ["UID", "OneOfGroup"] }),
       );
       await navigator.clipboard.writeText(json);
+      // also write to localStorage for cross-board paste
+      localStorage.setItem("os-dpi-clipboard", json);
       if (cut) {
         component.remove();
         Globals.designer.currentPanel?.onUpdate();
@@ -405,14 +376,17 @@ export function getEditMenuItems() {
 
   const canEdit = component && component.allowDelete;
 
+  const undoLabel = panel?.changeStack.undoLabel || "";
+  const redoLabel = panel?.changeStack.redoLabel || "";
+
   let items = [
     new MenuItem({
-      label: "Undo",
+      label: undoLabel ? `Undo: ${undoLabel}` : "Undo",
       callback: panel?.changeStack.canUndo ? () => panel?.undo() : undefined,
       disable: !panel?.changeStack.canUndo,
     }),
     new MenuItem({
-      label: "Redo",
+      label: redoLabel ? `Redo: ${redoLabel}` : "Redo",
       callback: panel?.changeStack.canRedo ? () => panel?.redo() : undefined,
       disable: !panel?.changeStack.canRedo,
     }),
@@ -431,15 +405,14 @@ export function getEditMenuItems() {
     new MenuItem({
       label: "Paste",
       callback: async () => {
-        const json = await navigator.clipboard.readText();
+        let json = await navigator.clipboard.readText().catch(() => "");
+        if (!json) json = localStorage.getItem("os-dpi-clipboard") || "";
         // we can't trust this input from the clipboard, catch and report errors
 
         try {
           var obj = JSON.parse(json);
         } catch (e) {
-          Globals.error.report("Invalid input to Paste");
-          Globals.error.report(json);
-          Globals.state.update();
+          showToast("Clipboard does not contain a valid component (invalid JSON)");
           return;
         }
         const className = obj.className;
@@ -471,15 +444,27 @@ export function getEditMenuItems() {
       disable: !canEdit,
     }),
     new MenuItem({
+      label: "Duplicate",
+      callback: () => {
+        const component = Globals.designer.selectedComponent;
+        if (!component?.allowDelete || !component.parent) return;
+        const obj = component.toObject({ omittedProps: ["UID", "OneOfGroup"] });
+        const clone = TreeBase.fromObject(obj, component.parent);
+        clone.moveTo(component.index + 1);
+        callAfterRender(() => designer.focusOn(clone.id));
+        panel?.onUpdate();
+      },
+      disable: !canEdit,
+    }),
+    new MenuItem({
       label: "Paste Into",
       callback: async () => {
-        const json = await navigator.clipboard.readText();
+        let json = await navigator.clipboard.readText().catch(() => "");
+        if (!json) json = localStorage.getItem("os-dpi-clipboard") || "";
         try {
           var obj = JSON.parse(json);
         } catch (e) {
-          Globals.error.report("Invalid input to Paste Into");
-          Globals.error.report(json);
-          Globals.state.update();
+          showToast("Clipboard does not contain a valid component (invalid JSON)");
           return;
         }
         const className = obj.className;
@@ -570,74 +555,112 @@ const sheet = {
 };
 
 /**
- * Display a list of designs in the db so they can be reopened or unloaded
+ * Display a card gallery of all saved designs
  */
 class DesignListDialog {
-  /** Show imported designs so they can be reopened */
+  /** Render the board gallery into the dialog (or refresh it if already open) */
   async open() {
-    const names = await db.names();
     const dialog = /** @type {HTMLDialogElement} */ (
       document.getElementById("OpenDialog")
     );
-    const list = html`<div @click=${() => dialog.close()}>
-      <h1>Open one of your designs</h1>
-      <ul>
-        ${names.map(
-          (name) =>
-            html`<li>
-              <a href=${"#" + name} target="_blank">${name}</a>
-            </li>`,
-        )}
-      </ul>
-      <button>Cancel</button>
-    </div>`;
-    if (dialog) {
-      render(dialog, list);
-    }
-    dialog.showModal();
+
+    const renderGallery = async () => {
+      const names = await db.names();
+      const saved = await db.saved();
+
+      const cards = names.map((name) => {
+        const isCurrent = name === db.designName;
+        const isSaved = saved.includes(name);
+        // Build 1–2 letter avatar from words / segments in the board name
+        const initials = (
+          name
+            .trim()
+            .split(/[\s_-]+/)
+            .slice(0, 2)
+            .map((w) => w[0] || "")
+            .join("") || name.slice(0, 2)
+        ).toUpperCase();
+
+        const previewSrc = `${location.pathname}?preview=1#${name}`;
+
+        return html`<div
+          class=${"board-card" + (isCurrent ? " board-card-current" : "")}
+        >
+          <div class="board-thumb-container">
+            <iframe
+              class="board-thumb"
+              src=${previewSrc}
+              tabindex="-1"
+              aria-hidden="true"
+            ></iframe>
+          </div>
+          <div class="board-card-avatar">${initials}</div>
+          <div class="board-card-info">
+            <div class="board-card-name">
+              ${name}
+              ${isCurrent
+                ? html`<span class="board-current-badge">current</span>`
+                : ""}
+            </div>
+            <div
+              class=${"board-card-status " + (isSaved ? "saved" : "unsaved")}
+            >
+              ${isSaved ? "✓ Saved to disk" : "⚠ Not saved to disk"}
+            </div>
+          </div>
+          <div class="board-card-actions">
+            ${isCurrent
+              ? ""
+              : html`<a
+                    class="board-card-open"
+                    href=${"#" + name}
+                    @click=${() => dialog.close()}
+                    >Open</a
+                  >
+                  <button
+                    class="board-card-remove"
+                    title="Remove from browser storage"
+                    @click=${async () => {
+                      await db.unload(name);
+                      renderGallery();
+                    }}
+                  >
+                    Remove
+                  </button>`}
+          </div>
+        </div>`;
+      });
+
+      const content = html`<div class="board-gallery-dialog">
+        <div class="board-gallery-header">
+          <h1>Your Boards</h1>
+          <a class="board-gallery-home" href="/" title="Return to home page">← Home</a>
+        </div>
+        ${names.length === 0
+          ? html`<p class="board-gallery-empty">
+              No boards in browser storage. Import a file or create a new board.
+            </p>`
+          : html`<div class="board-gallery">${cards}</div>`}
+        <div class="board-gallery-footer">
+          <button
+            class="board-gallery-new"
+            @click=${async () => {
+              const name = await db.uniqueName("new");
+              window.open(`#${name}`, "_blank", `noopener=true`);
+              dialog.close();
+            }}
+          >+ New Board</button>
+          <button @click=${() => dialog.close()}>Close</button>
+        </div>
+      </div>`;
+
+      render(dialog, content);
+    };
+
+    await renderGallery();
+    if (!dialog.open) dialog.showModal();
   }
-  /** Show imported designs so they can be unloaded */
-  async unload() {
-    const names = await db.names();
-    const saved = await db.saved();
-    const dialog = /** @type {HTMLDialogElement} */ (
-      document.getElementById("OpenDialog")
-    );
-    /** Unload the checked designs */
-    async function unloadChecked() {
-      const checkboxes = /** @type {HTMLInputElement[]} */ ([
-        ...dialog.querySelectorAll('input[type="checkbox"]'),
-      ]);
-      for (const checkbox of checkboxes) {
-        if (checkbox.checked) {
-          await db.unload(checkbox.name);
-        }
-      }
-      dialog.close();
-    }
-    const list = html`<div>
-      <h1>Check the designs you want to unload</h1>
-      <ul>
-        ${names.map((name) => {
-          let label;
-          if (saved.includes(name)) {
-            label = html`<span>${name}</span>`;
-          } else {
-            label = html`<b>${name}</b> <b class="warning">Not saved</b>`;
-          }
-          return html`<li>
-            <label><input type="checkbox" name=${name} /> ${label}</label>
-          </li>`;
-        })}
-      </ul>
-      <button @click=${unloadChecked}>Unload</button>
-      <button @click=${() => dialog.close()}>Cancel</button>
-    </div>`;
-    if (dialog) {
-      render(dialog, list);
-    }
-    dialog.showModal();
-  }
+
   template() {
     return html`<dialog id="OpenDialog"></dialog>`;
   }
@@ -672,7 +695,7 @@ class ImportURLDialog {
                   `noopener=true`,
                 );
               },
-              () => console.log("rejected"),
+              (e) => showToast(e?.message || "Import from URL failed"),
             );
             this.current.close();
           }
@@ -690,6 +713,49 @@ class ImportURLDialog {
     if (input instanceof HTMLInputElement) input.value = url;
     this.current.showModal();
   }
+}
+
+/** Lazily create and open the keyboard shortcuts help dialog */
+function showKeyboardHelp() {
+  let dialog = /** @type {HTMLDialogElement | null} */ (
+    document.getElementById("KeyboardHelp")
+  );
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "KeyboardHelp";
+    dialog.innerHTML = `
+      <h1>Keyboard Shortcuts</h1>
+      <table class="kbd-help-table">
+        <tbody>
+          <tr class="kbd-section"><td colspan="2">Navigation</td></tr>
+          <tr><td><kbd>F</kbd></td><td>File menu</td></tr>
+          <tr><td><kbd>E</kbd></td><td>Edit menu</td></tr>
+          <tr><td><kbd>A</kbd></td><td>Add menu</td></tr>
+          <tr><td><kbd>H</kbd></td><td>Help menu</td></tr>
+          <tr><td><kbd>T</kbd></td><td>Designer tabs</td></tr>
+          <tr><td><kbd>N</kbd></td><td>Board name</td></tr>
+          <tr class="kbd-section"><td colspan="2">Designer panel</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Move focus between settings</td></tr>
+          <tr><td><kbd>Shift</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd></td><td>Move component up / down</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo</td></tr>
+          <tr class="kbd-section"><td colspan="2">Buttons</td></tr>
+          <tr><td>Click</td><td>Select button</td></tr>
+          <tr><td><kbd>Shift</kbd>+Click</td><td>Add button to multi-selection</td></tr>
+          <tr><td>Drag</td><td>Reorder button (flex) or snap to cell (grid)</td></tr>
+        </tbody>
+      </table>
+      <button id="KeyboardHelpClose">Close</button>
+    `;
+    document.body.appendChild(dialog);
+    dialog
+      .querySelector("#KeyboardHelpClose")
+      ?.addEventListener("click", () => dialog?.close());
+    dialog.addEventListener("click", (e) => {
+      if (e.target === dialog) dialog?.close();
+    });
+  }
+  dialog.showModal();
 }
 
 export class ToolBar extends TreeBase {
@@ -711,20 +777,37 @@ export class ToolBar extends TreeBase {
     this.helpMenu = new Menu("Help", getHelpMenuItems, this);
     this.designListDialog = new DesignListDialog();
     this.importURLDialog = new ImportURLDialog();
+
+    // Ensure only one menu is open at a time: wrap each menu's toggleExpanded
+    // so it collapses all sibling menus before opening itself.
+    const allMenus = [this.fileMenu, this.editMenu, this.addMenu, this.helpMenu];
+    for (const menu of allMenus) {
+      const original = menu.toggleExpanded;
+      menu.toggleExpanded = (event = null, last = false) => {
+        for (const other of allMenus) {
+          if (other !== menu && other.expanded) {
+            other.expanded = false;
+          }
+        }
+        original(event, last);
+      };
+    }
   }
 
   template() {
     return html`
       <div class="toolbar brand">
         <ul>
-          <li>
-            <label for="designName">Name: </label>
+          <li class="toolbar-breadcrumb">
+            <a class="toolbar-home-link" href="/">Home</a>
+            <span class="toolbar-sep">/</span>
             ${hinted(
               html`<input
                 id="designName"
                 type="text"
+                aria-label="Board name"
                 .value=${db.designName}
-                .size=${Math.max(db.designName.length, 12)}
+                .size=${Math.max(db.designName.length, 10)}
                 @change=${(/** @type {InputEventWithTarget} */ event) =>
                   db
                     .renameDesign(event.target.value)
@@ -758,6 +841,25 @@ export class ToolBar extends TreeBase {
             }
           </li>
           <li>${workerUpdateButton()}</li>
+          <li>
+            <button
+              class="toolbar-kbd-help"
+              title="Keyboard shortcuts"
+              @click=${showKeyboardHelp}
+            >?</button>
+          </li>
+          <li class="toolbar-preview-item">
+            <button
+              class="toolbar-preview-btn"
+              title="Switch to user mode (Alt+D to return)"
+              @click=${() => Globals.state.update({ editing: false })}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              Preview
+            </button>
+          </li>
         </ul>
         ${this.designListDialog.template()} ${this.importURLDialog.template()}
       </div>

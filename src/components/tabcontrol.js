@@ -14,6 +14,13 @@ export class TabControl extends TreeBase {
   tabEdge = new Props.Select(["bottom", "top", "left", "right", "none"], {
     defaultValue: "top",
   });
+  tabSize = new Props.Float(1, {
+    title:
+      "Scale factor for the tab buttons: 1 is the normal size, " +
+      "0.5 is half size, 2 is double size",
+    min: 0.1,
+    max: 10,
+  });
   name = new Props.String("tabs");
 
   allowedChildren = ["TabPanel"];
@@ -45,8 +52,12 @@ export class TabControl extends TreeBase {
         .filter((panel) => panel.label.value != "UNLABELED")
         .map((panel) => {
           const color = panel.background.value;
+          const tabSize = this.tabSize.value;
           const buttonStyle = {
             backgroundColor: color,
+            // only override the stylesheet size when customized, so
+            // existing boards keep their current look (issue #267)
+            ...(tabSize !== 1 && { fontSize: `${tabSize}em` }),
           };
           return html`<li>
             <button

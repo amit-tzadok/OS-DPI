@@ -1,6 +1,7 @@
 // vite.config.js
 import { defineConfig } from "vite";
 import path from "path";
+import react from "@vitejs/plugin-react";
 
 const dt = new Date();
 const version = `"${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}-${dt.getHours()}-${dt.getMinutes()}-${dt.getSeconds()}"`;
@@ -45,5 +46,5 @@ export default defineConfig({
   define: {
     APP_VERSION: version,
   },
-  plugins: [fullReloadAlways],
+  plugins: [react(), fullReloadAlways],
 });

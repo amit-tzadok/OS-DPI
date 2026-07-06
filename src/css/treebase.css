@@ -1,44 +1,175 @@
-  button.treebase {
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 0.5em;
-    border: outset;
+/* ── Tree node buttons ── */
+button.treebase {
+  background-color: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  padding: 0.28em 0.65em;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text2);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    color var(--transition-fast);
+}
+
+button.treebase:hover {
+  background-color: var(--surface3);
+  border-color: var(--border-color-strong);
+  color: var(--text1);
+  box-shadow: var(--shadow-xs);
+}
+
+button.treebase svg {
+  object-fit: contain;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  margin: -4px;
+}
+
+/* ── Tree reorder movement controls ── */
+.treebase .movement {
+  margin-top: 0.5em;
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.treebase button svg {
+  object-fit: contain;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  margin: -4px;
+}
+
+.treebase button {
+  background-color: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  padding: 0.28em 0.65em;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text2);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.treebase button:hover {
+  background-color: var(--surface3);
+  border-color: var(--border-color-strong);
+  color: var(--text1);
+  box-shadow: var(--shadow-xs);
+}
+
+.treebase fieldset {
+  margin-bottom: 0.5em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.5em 0.65em;
+  background: var(--surface2);
+}
+
+.treebase fieldset > legend {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text2);
+  padding: 0 0.4em;
+}
+
+.treebase label[hiddenlabel] span {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.treebase label {
+  display: inline-block;
+}
+
+/* ── Tree row action buttons — always visible ── */
+.tree-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-left: 6px;
+  /* Visible at rest so new users can discover them */
+  opacity: 0.55;
+  transition: opacity var(--transition-fast);
+}
+
+details > summary:hover .tree-actions,
+details > summary:focus-within .tree-actions {
+  opacity: 1;
+}
+
+/* Add button — quiet hairline pill, brand text only */
+button.tree-add,
+select.tree-add-select {
+  font-size: 0.8em;
+  padding: 0.1em 0.55em;
+  min-width: 2em;
+  max-width: 10em;
+  width: auto;
+  color: var(--brand);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  font-weight: 700;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+button.tree-add:hover,
+select.tree-add-select:hover {
+  background: var(--surface2);
+  border-color: var(--border-color-strong);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Delete button */
+button.tree-delete {
+  font-size: 0.75em;
+  padding: 0.08em 0.35em;
+  min-width: 1.6em;
+  color: hsl(4 60% 52%);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+button.tree-delete:hover {
+  background: hsl(4 75% 96%);
+  border-color: hsl(4 45% 80%);
+}
+
+@media (prefers-color-scheme: dark) {
+  button.tree-delete:hover {
+    background: hsl(4 30% 18%);
+    border-color: hsl(4 30% 35%);
   }
-  button.treebase svg {
-    object-fit: contain;
-    width: 1em;
-    height: 1em;
-    vertical-align: middle;
-    margin: -4px;
-  }
-  .treebase .movement {
-    margin-top: 0.5em;
-  }
-  .treebase button svg {
-    object-fit: contain;
-    width: 1em;
-    height: 1em;
-    vertical-align: middle;
-    margin: -4px;
-  }
-  .treebase button {
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 0.5em;
-    border: outset;
-  }
-  .treebase fieldset {
-    margin-bottom: 0.5em;
-    border-style: inset;
-    border-width: 3px;
-  }
-  .treebase label[hiddenlabel] span {
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    height: 1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
-  .treebase label {
-    display: inline-block;
-  }
+}
+
+html[color-scheme="dark"] button.tree-delete:hover {
+  background: hsl(4 30% 18%);
+  border-color: hsl(4 30% 35%);
+}

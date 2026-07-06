@@ -139,6 +139,19 @@ export class Actions extends DesignerPanel {
       help="Actions"
       id=${this.id}
     >
+      <details class="panel-help">
+        <summary>About the Actions tab</summary>
+        <div class="panel-help-body">
+          <p>Actions are if-then rules that fire when buttons are pressed. Rules are checked top-to-bottom — the first matching rule wins.</p>
+          <ul>
+            <li><strong>Origin</strong> — the button's <em>Name</em> value. Use <code>*</code> to match any button, or <code>init</code> to run once at startup.</li>
+            <li><strong>Conditions</strong> — optional expressions that must all be true (leave blank to always match). Example: <code>$page == "home"</code></li>
+            <li><strong>State / New value</strong> — the state variable to set and its new value. Example: <code>$Display</code> → <code>$Display + " " + #label</code></li>
+            <li>The <strong>highlighted row</strong> is the last rule that fired.</li>
+            <li>Use the <strong>Add menu</strong> to insert new rows, or the <strong>Edit menu</strong> to move or delete them.</li>
+          </ul>
+        </div>
+      </details>
       <table>
         <thead>
           <tr>

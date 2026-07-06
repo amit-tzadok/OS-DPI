@@ -1,8 +1,8 @@
 /**
  * Handle pointer events integrated with Pattern.Groups
  *
- * TODO: we should be "over" the current button after activate. We are
- * currently not until you leave the current button and return.
+ * After activation (pointerup) current is reset to None, so the user must
+ * dwell on a button again before it can be activated a second time.
  */
 
 import { TreeBase } from "components/treebase";
@@ -182,6 +182,7 @@ export class PointerHandler extends Handler {
         emittedEvents.push({ ...current, type: "pointerdown" });
       } else if (event.type == "pointerup" && current !== None) {
         emittedEvents.push({ ...current, type: "pointerup" });
+        current = None; // reset so hover must be re-established after activation
       }
       return {
         current,
