@@ -20,6 +20,7 @@ import { Designer } from "components/designer";
 import { Content } from "components/content";
 import { workerCheckForUpdate } from "components/serviceWorker";
 import { accessed } from "./eval";
+import { speechSuggestions } from "components/speechSuggestions";
 
 /** let me wait for the page to load */
 const pageLoaded = new Promise((resolve) => {
@@ -35,8 +36,11 @@ export async function start() {
   let editing = true;
   if (window.location.search) {
     const params = new URLSearchParams(window.location.search);
+    // Feature 10: ?preview=1 shows only the user-mode board (no toolbar/designer)
+    if (params.get("preview") !== null) {
+      editing = false;
+    }
     const fetch = params.get("fetch");
-    console.log({ fetch });
     if (fetch) {
       await pleaseWait(
         db.readDesignFromURL(fetch, window.location.hash.slice(1)),
@@ -51,8 +55,11 @@ export async function start() {
   }
   let name = window.location.hash.slice(1);
   if (!name) {
-    name = await db.uniqueName("new");
-    window.location.hash = `#${name}`;
+    // No board selected — show the home screen instead of auto-creating a design
+    await pageLoaded;
+    const { mountReact } = await import("./react/main.jsx");
+    mountReact({ mode: "home" });
+    return;
   }
   db.setDesignName(name);
   const dataArray = await db.read("content", []);
@@ -116,6 +123,9 @@ export async function start() {
   const monitor = Monitor.create("Monitor", null);
   monitor.init();
 
+  /* Speech Suggestions */
+  speechSuggestions._setupDirectSpeech();
+
   function renderUI() {
     // report the time to draw the frame
     if (location.host.startsWith("localhost")) {
@@ -133,8 +143,14 @@ export async function start() {
     // the real update begins here
     const editing = Globals.state.get("editing");
     document.body.classList.toggle("designing", editing);
+    // Apply per-board font size to the canvas area
+    const uiDiv = document.getElementById("UI");
+    if (uiDiv) {
+      uiDiv.style.fontSize = (Globals.layout.uiScale?.value ?? 0.7) + "vw";
+    }
     safeRender("cues", Globals.cues);
     safeRender("UI", Globals.layout.children[0]);
+    safeRender("suggestions", speechSuggestions);
     if (editing) {
       safeRender("toolbar", toolbar);
       safeRender("tabs", Globals.designer);
@@ -154,6 +170,48 @@ export async function start() {
   Globals.state.observe(debounce(renderUI));
   callAfterRender(() => Globals.designer.restoreFocus());
   renderUI();
+
+  // Warn before closing if there are unsaved changes
+  window.addEventListener("beforeunload", (e) => {
+    if (db.hasUnsavedChanges) {
+      e.preventDefault();
+      // returnValue is required by some browsers to trigger the dialog
+      e.returnValue = "";
+    }
+  });
+
+  // Draggable split handle between canvas (#UI) and designer panel
+  const splitHandle = document.getElementById("split-handle");
+  if (splitHandle) {
+    splitHandle.addEventListener("pointerdown", (/** @type {PointerEvent} */ e) => {
+      if (!e.isPrimary) return;
+      e.preventDefault();
+      splitHandle.classList.add("dragging");
+      const onMove = (/** @type {PointerEvent} */ ev) => {
+        if (!ev.isPrimary) return;
+        const totalWidth = document.body.clientWidth;
+        const SPLIT_MIN_PCT = 15;
+        const SPLIT_MAX_PCT = 85;
+        let pct = (ev.clientX / totalWidth) * 100;
+        pct = Math.max(SPLIT_MIN_PCT, Math.min(SPLIT_MAX_PCT, pct));
+        document.body.style.setProperty("--split", pct + "%");
+      };
+      const cleanup = () => {
+        splitHandle.classList.remove("dragging");
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", cleanup);
+        window.removeEventListener("pointercancel", cleanup);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", cleanup);
+      window.addEventListener("pointercancel", cleanup);
+    });
+    splitHandle.addEventListener("dblclick", () => {
+      document.body.style.setProperty("--split", "50%");
+    });
+  }
+  const { mountReact } = await import("./react/main.jsx");
+  mountReact();
 }
 
 /* Watch for updates happening in other tabs */
@@ -179,9 +237,10 @@ db.addUpdateListener((message) => {
 });
 
 // watch for changes to the hash such as using the browser back button
-window.addEventListener("hashchange", () => {
+window.addEventListener("hashchange", async () => {
   sessionStorage.clear();
-  start();
+  if (Globals.restart) await Globals.restart();
+  else await start();
 });
 
 // watch for window resize and force a redraw

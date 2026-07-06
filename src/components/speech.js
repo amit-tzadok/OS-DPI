@@ -93,6 +93,35 @@ TreeBase.register(Speech, "Speech");
 /** @type{SpeechSynthesisVoice[]} */
 let voices = [];
 
+// Pre-load voices as early as possible so speakSync() can use them.
+// Chrome fires "voiceschanged" asynchronously; this ensures the cache is warm.
+if (typeof speechSynthesis !== "undefined") {
+  voices = speechSynthesis.getVoices();
+  speechSynthesis.addEventListener("voiceschanged", () => {
+    voices = speechSynthesis.getVoices();
+  });
+}
+
+/**
+ * Speak text synchronously inside a user-gesture handler.
+ *
+ * Unlike speak(), this does NOT await voice loading, so it stays within
+ * Chrome's transient user-activation context and works without "await".
+ * Call this directly from pointerup / click handlers.
+ *
+ * @param {string} text
+ */
+export function speakSync(text) {
+  if (!text) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  // Attach the best pre-loaded voice if available (improves Chrome reliability)
+  if (voices.length) {
+    utterance.voice = voices.find((v) => v.default) || voices[0];
+  }
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utterance);
+}
+
 /**
  * Promise to return voices
  *
