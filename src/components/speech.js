@@ -20,6 +20,8 @@ export async function speak(message, voiceURI, pitch, rate, volume) {
   if (voice) {
     utterance.voice = voice;
     utterance.lang = voice.lang;
+  } else {
+    utterance.lang = "en-US";
   }
   utterance.pitch = pitch;
   utterance.rate = rate;
@@ -49,6 +51,8 @@ class Speech extends TreeBase {
     if (voice) {
       utterance.voice = voice;
       utterance.lang = voice.lang;
+    } else {
+      utterance.lang = "en-US";
     }
     utterance.pitch = this.pitch.value;
     utterance.rate = this.rate.value;
@@ -90,16 +94,34 @@ class Speech extends TreeBase {
 }
 TreeBase.register(Speech, "Speech");
 
+/** Only voices with a United States English accent are offered
+ * @param {SpeechSynthesisVoice} voice */
+function isUSEnglish(voice) {
+  return /^en[-_]US/i.test(voice.lang);
+}
+
+/** Keep the US voices; fall back to the full list on a system with none
+ * @param {SpeechSynthesisVoice[]} all */
+function usOnly(all) {
+  const us = all.filter(isUSEnglish);
+  return us.length ? us : all;
+}
+
 /** @type{SpeechSynthesisVoice[]} */
 let voices = [];
 
 // Pre-load voices as early as possible so speakSync() can use them.
 // Chrome fires "voiceschanged" asynchronously; this ensures the cache is warm.
 if (typeof speechSynthesis !== "undefined") {
-  voices = speechSynthesis.getVoices();
+  voices = usOnly(speechSynthesis.getVoices());
   speechSynthesis.addEventListener("voiceschanged", () => {
-    voices = speechSynthesis.getVoices();
+    voices = usOnly(speechSynthesis.getVoices());
   });
+}
+
+/** The preferred US-accent voice, or null when none have loaded yet */
+export function preferredVoice() {
+  return voices.find((voice) => voice.default) || voices[0] || null;
 }
 
 /**
@@ -115,8 +137,12 @@ export function speakSync(text) {
   if (!text) return;
   const utterance = new SpeechSynthesisUtterance(text);
   // Attach the best pre-loaded voice if available (improves Chrome reliability)
-  if (voices.length) {
-    utterance.voice = voices.find((v) => v.default) || voices[0];
+  const voice = preferredVoice();
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+  } else {
+    utterance.lang = "en-US";
   }
   speechSynthesis.cancel();
   speechSynthesis.speak(utterance);
@@ -131,7 +157,7 @@ function getVoices() {
   return new Promise(function (resolve) {
     // iOS won't fire the voiceschanged event so we have to poll for them
     function f() {
-      voices = (voices.length && voices) || speechSynthesis.getVoices();
+      voices = (voices.length && voices) || usOnly(speechSynthesis.getVoices());
       if (voices.length) resolve(voices);
       else setTimeout(f, 100);
     }

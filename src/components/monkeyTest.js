@@ -170,24 +170,30 @@ export function monkey() {
   document.addEventListener("internalerror", () => test.return());
   // start the generator
   const test = monkeyTest();
+  console.log("Monkey test running — press ctrl+q to stop it");
   // allow stopping the test with a key
   const stopHandler = ({ key, ctrlKey }) =>
     key == "q" && ctrlKey && test.return();
   document.addEventListener("keyup", stopHandler);
-  // delay if the render isnt complete but don't require it
+  // pace the steps slowly enough for a person to follow along; a
+  // completed render shortens the wait but never below one tick, and a
+  // slow render gets a few extra ticks without being required
   let wait = 0;
-  document.addEventListener("rendercomplete", () => (wait = 0));
+  document.addEventListener(
+    "rendercomplete",
+    () => (wait = Math.min(wait, 1)),
+  );
   const timer = setInterval(() => {
     if (wait <= 0) {
-      wait = 5;
+      wait = 3;
       if (!test.next().value) {
-        clearTimeout(timer);
+        clearInterval(timer);
         document.removeEventListener("keyup", stopHandler);
       }
     } else {
       wait--;
     }
-  }, 20);
+  }, 350);
 }
 
 if (location.host.match(/^localhost.*$|^bs-local.*$/)) {

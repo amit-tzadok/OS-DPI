@@ -20,7 +20,8 @@ import { friendlyName, wikiName } from "./names";
 import { showToast } from "./errors";
 
 import { workerUpdateButton } from "components/serviceWorker";
-import { monkey } from "components/monkeyTest";
+import "components/monkeyTest"; // keeps the ctrl+m monkey test on localhost
+import { startTutorial } from "components/tutorial";
 
 /** Return a list of available Menu items on this component
  *
@@ -524,20 +525,15 @@ function getHelpMenuItems() {
   }
   items.push(
     new MenuItem({
+      label: "Tutorial",
+      callback: startTutorial,
+    }),
+    new MenuItem({
       label: "About OS-DPI",
       callback: openHelpURL,
       args: ["About-Project-Open"],
     }),
   );
-
-  if (location.host.match(/^localhost.*$|^bs-local.*$/)) {
-    items.push(
-      new MenuItem({
-        label: "Test",
-        callback: monkey,
-      }),
-    );
-  }
   return items;
 }
 

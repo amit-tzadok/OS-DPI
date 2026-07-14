@@ -8,6 +8,43 @@ import pleaseWait from "./wait";
 import Globals from "app/globals";
 import { fileOpen } from "browser-fs-access";
 
+/** Depth-first search for a node with the given className
+ * @param {any} node @param {string} cls */
+function findNode(node, cls) {
+  if (node.className === cls) return node;
+  for (const child of node.children || []) {
+    const found = findNode(child, cls);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Pick grid dimensions that fit count items
+ * @param {number} count */
+function gridDims(count) {
+  const columns = Math.max(1, Math.min(6, Math.ceil(Math.sqrt(count))));
+  const rows = Math.max(1, Math.ceil(count / columns));
+  return { rows, columns };
+}
+
+/** Build a Grid spec with optional filters
+ * @param {number} count - items the grid must fit
+ * @param {string} scale
+ * @param {{field: string, operator: string, value: string}[]} filters
+ */
+function gridSpec(count, scale, filters = []) {
+  const { rows, columns } = gridDims(count);
+  return {
+    className: "Grid",
+    props: { rows, columns, name: "grid", background: "white", fillItems: true, scale },
+    children: (filters.length ? filters : [{}]).map((props) => ({
+      className: "GridFilter",
+      props,
+      children: [],
+    })),
+  };
+}
+
 export class Content extends DesignerPanel {
   name = new Props.String("Content");
 
@@ -24,63 +61,96 @@ export class Content extends DesignerPanel {
   /** @type {"" | "loading" | "error" | "success"} */
   _aiStatus = "";
   _aiError = "";
+  /** Short description of the layout the last generation built */
+  _aiLayoutNote = "";
 
-  /** After AI generation, ensure the board shows all generated rows in a Grid */
-  async _fitGridToRows(count) {
-    /** @param {any} node @param {string} cls */
-    function findNode(node, cls) {
-      if (node.className === cls) return node;
-      for (const child of node.children || []) {
-        const found = findNode(child, cls);
-        if (found) return found;
-      }
-      return null;
+  /** After AI generation, rebuild the board to fit the generated rows.
+   * Uses a Display message strip plus, when the vocabulary is organised
+   * into categories, a TabControl (one tab per category) or a Radio
+   * category filter above a filtered Grid.
+   * @param {Row[]} rows
+   * @param {"tabs" | "categories" | "simple"} style
+   * @returns {Promise<string>} a short note describing the layout built
+   */
+  async _buildLayout(rows, style) {
+    const page = findNode(Globals.layout, "Page");
+    if (!page) return "";
+
+    /** @type {Map<string, number>} items per category, in first-seen order */
+    const categories = new Map();
+    for (const row of rows) {
+      const cat = String(row.category || "").trim();
+      if (cat) categories.set(cat, (categories.get(cat) || 0) + 1);
+    }
+    if (categories.size < 2 || categories.size > 8) style = "simple";
+
+    const display = {
+      className: "Display",
+      props: { stateName: "$Display", background: "white", fontSize: "2", scale: "1" },
+      children: [],
+    };
+
+    /** @type {object[]} */
+    let children;
+    let note;
+    if (style === "tabs") {
+      const tabs = {
+        className: "TabControl",
+        props: { stateName: "$tab", name: "tabs", tabEdge: "top", scale: "7" },
+        children: [...categories.entries()].map(([cat, count]) => ({
+          className: "TabPanel",
+          props: { name: cat, label: cat, background: "" },
+          children: [
+            gridSpec(count, "1", [
+              { field: "#category", operator: "equals", value: `'${cat}'` },
+            ]),
+          ],
+        })),
+      };
+      children = [display, tabs];
+      note = `in ${categories.size} tab pages`;
+    } else if (style === "categories") {
+      const radio = {
+        className: "Radio",
+        props: { stateName: "$category", label: "", scale: "1" },
+        children: [...categories.keys()].map((cat) => ({
+          className: "Option",
+          props: { name: cat, value: cat },
+          children: [],
+        })),
+      };
+      const maxCount = Math.max(...categories.values());
+      children = [
+        display,
+        radio,
+        gridSpec(maxCount, "6", [
+          { field: "#category", operator: "equals", value: "$category" },
+        ]),
+      ];
+      note = `with a ${categories.size}-category filter`;
+    } else {
+      children = [display, gridSpec(rows.length, "7")];
+      note = "in a simple grid";
     }
 
-    const columns = Math.min(6, Math.ceil(Math.sqrt(count)));
-    const rows = Math.ceil(count / columns);
-
-    // If a Grid already exists, just resize it
-    const grid = findNode(Globals.layout, "Grid");
-    if (grid) {
-      grid.rows.set(rows);
-      grid.columns.set(columns);
-    } else {
-      // No Grid — find the Page, remove visual children, insert a Grid
-      const page = findNode(Globals.layout, "Page");
-      if (!page) return;
-
-      const visualClasses = new Set(["Stack", "Display", "TabControl"]);
-      for (const child of [...page.children]) {
-        if (visualClasses.has(child.className)) child.remove();
-      }
-
-      TreeBase.fromObject(
-        {
-          className: "Grid",
-          props: { rows, columns, name: "grid", background: "white", fillItems: true, scale: 1 },
-          children: [{ className: "GridFilter", props: {}, children: [] }],
-        },
-        page,
-      );
+    // Replace the visual children of the Page with the new layout
+    const visualClasses = new Set([
+      "Stack", "Display", "TabControl", "Grid", "Radio", "Gap", "Button", "VSD",
+    ]);
+    for (const child of [...page.children]) {
+      if (visualClasses.has(child.className)) child.remove();
+    }
+    for (const child of children) {
+      TreeBase.fromObject(child, page);
     }
 
     await db.write("layout", Globals.layout.toObject({ omittedProps: [] }));
     Globals.layout.update();
+    return note;
   }
 
-  /** Add a Speech component + speak-on-press action if not already wired up */
+  /** Add a Speech component + a speak-and-show-on-press action if not already wired up */
   _setupSpeech() {
-    /** @param {any} node @param {string} cls */
-    function findNode(node, cls) {
-      if (node.className === cls) return node;
-      for (const child of node.children || []) {
-        const found = findNode(child, cls);
-        if (found) return found;
-      }
-      return null;
-    }
-
     // Add Speech component to the Page if absent
     const page = findNode(Globals.layout, "Page");
     if (page && !page.children.some((c) => c.className === "Speech")) {
@@ -91,8 +161,11 @@ export class Content extends DesignerPanel {
       db.write("layout", Globals.layout.toObject({ omittedProps: [] }));
     }
 
-    // Add a "speak #label on any press" action if absent
-    const alreadyHasSpeak = Globals.actions?.children.some(
+    if (!Globals.actions) return;
+
+    // Only the first matching rule fires, so $Speak and $Display must be
+    // updates on the same "any press" Action.
+    const speakAction = Globals.actions.children.find(
       (a) =>
         a.className === "Action" &&
         a.origin?.value === "*" &&
@@ -103,7 +176,7 @@ export class Content extends DesignerPanel {
             u.stateName?.value === "$Speak",
         ),
     );
-    if (!alreadyHasSpeak && Globals.actions) {
+    if (!speakAction) {
       TreeBase.fromObject(
         {
           className: "Action",
@@ -111,9 +184,24 @@ export class Content extends DesignerPanel {
           children: [
             { className: "ActionCondition", props: { Condition: "" }, children: [] },
             { className: "ActionUpdate", props: { stateName: "$Speak", newValue: "#label" }, children: [] },
+            { className: "ActionUpdate", props: { stateName: "$Display", newValue: "#label" }, children: [] },
           ],
         },
         Globals.actions,
+      );
+      db.write("actions", Globals.actions.toObject({ omittedProps: [] }));
+    } else if (
+      !speakAction.children.some(
+        (u) =>
+          u.className === "ActionUpdate" &&
+          "stateName" in u &&
+          u.stateName?.value === "$Display",
+      )
+    ) {
+      // Upgrade a speak-only rule from an earlier generation to also fill the Display
+      TreeBase.fromObject(
+        { className: "ActionUpdate", props: { stateName: "$Display", newValue: "#label" }, children: [] },
+        speakAction,
       );
       db.write("actions", Globals.actions.toObject({ omittedProps: [] }));
     }
@@ -136,7 +224,7 @@ export class Content extends DesignerPanel {
     if (Globals.data.length > 0) {
       if (
         !window.confirm(
-          `This will replace your current ${Globals.data.length} rows with AI-generated content. Continue?`,
+          `This will replace your current ${Globals.data.length} rows and rebuild the board layout with AI-generated content. Continue?`,
         )
       )
         return;
@@ -152,8 +240,12 @@ export class Content extends DesignerPanel {
         `The user said: "${this._aiDescription.trim()}"\n\n` +
         `Generate vocabulary items for this board. ` +
         `Unless the user specified a different number, generate about 20 items. ` +
-        `Return a JSON object with an "items" array where each object has at minimum a "label" field (1–3 words shown on the button). ` +
-        `Add a "category" field when it helps organise the vocabulary. ` +
+        `Return a JSON object shaped like {"layout": "...", "items": [...]} where each item has a "label" field (1–3 words shown on the button) and a "category" field grouping related items. ` +
+        `Set "layout" based on board size — every extra press costs an AAC user real effort, so hide vocabulary behind navigation only when a flat grid would get crowded: ` +
+        `"simple" — one flat grid with no categories; use when there are about 16 items or fewer so all vocabulary is visible and speakable in one press. ` +
+        `"categories" — a row of category filter buttons above one grid; prefer this for larger boards whose items group naturally (e.g. People, Phrases, Places, Reactions — even a single subject usually splits this way). ` +
+        `"tabs" — categories shown as separate tab pages; use only for big boards (30+ items) with clearly distinct groups. ` +
+        `When layout is "tabs" or "categories", give every item a category and use 2–8 short category names. ` +
         `Make vocabulary functional and appropriate for AAC users.`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -180,15 +272,39 @@ export class Content extends DesignerPanel {
 
       const parsed = JSON.parse(text);
       // Handle {"items":[...]} or {"vocabulary":[...]} or a direct array
-      const rows = Array.isArray(parsed)
+      const rawRows = Array.isArray(parsed)
         ? parsed
-        : parsed.items ?? parsed.vocabulary ?? Object.values(parsed)[0];
-      if (!Array.isArray(rows)) throw new Error("AI returned unexpected format");
+        : parsed.items ??
+          parsed.vocabulary ??
+          Object.values(parsed).find((v) => Array.isArray(v));
+      if (!Array.isArray(rawRows)) throw new Error("AI returned unexpected format");
+
+      // Normalize: labels are strings; categories are trimmed with quotes
+      // stripped so they can appear in GridFilter expressions.
+      const rows = rawRows
+        .map((r) => (typeof r === "string" ? { label: r } : r))
+        .filter((r) => r && typeof r === "object" && r.label)
+        .map((r) => {
+          const row = { ...r, label: String(r.label) };
+          if (row.category)
+            row.category = String(row.category).replace(/'/g, "").trim();
+          return row;
+        });
+      if (!rows.length) throw new Error("AI returned no usable items");
+
+      /** @type {"tabs" | "categories" | "simple"} */
+      const style = ["tabs", "categories"].includes(parsed.layout)
+        ? parsed.layout
+        : "simple";
+      if (style !== "simple") {
+        // Every row needs a category or it would be hidden by the filters
+        for (const row of rows) if (!row.category) row.category = "More";
+      }
 
       Globals.data.setContent(rows);
       await db.write("content", rows);
 
-      await this._fitGridToRows(rows.length);
+      this._aiLayoutNote = await this._buildLayout(rows, style);
       this._setupSpeech();
 
       this._aiStatus = "success";
@@ -287,17 +403,13 @@ export class Content extends DesignerPanel {
             <p>Use <strong>File → Save sheet</strong> to export the current spreadsheet. Use <strong>File → Save logs (CSV)</strong> to export any logger data.</p>
           </div>
         </details>
-        <p>
-          ${data.length} rows with these fields:
-          ${String([...data.allFields].sort()).replaceAll(",", ", ")}
+        <section class="content-section">
+        <h2>Spreadsheet rows</h2>
+        <p class="content-rows-summary">
+          ${data.length
+            ? `${data.length} rows with these fields: ${String([...data.allFields].sort()).replaceAll(",", ", ")}`
+            : "No rows loaded — use File → Load Sheet, or generate a board below."}
         </p>
-        <div class="content-media-tip">
-          <strong>How to add images or audio to a button:</strong>
-          <ol>
-            <li>Click <strong>Load media</strong> below to import image or audio files</li>
-            <li>Drag any item from the list onto a button in your board to assign it</li>
-          </ol>
-        </div>
         <details class="ai-section" ?open=${this._aiStatus === "error"}>
           <summary>✨ Generate with AI</summary>
           <div class="ai-body">
@@ -329,16 +441,36 @@ export class Content extends DesignerPanel {
               : html``}
             ${this._aiStatus === "success"
               ? html`<p class="ai-success">
-                  ✓ Generated ${Globals.data.length} rows. Check the row count above.
+                  ✓ Generated ${Globals.data.length} rows${this._aiLayoutNote
+                    ? ` ${this._aiLayoutNote}`
+                    : ""}. Check the row count above.
                 </p>`
               : html``}
           </div>
         </details>
+        </section>
 
+        <section class="content-section">
         <h2>Media files</h2>
+        <div class="content-media-tip">
+          <strong>How to add images or audio to a button:</strong>
+          <ol>
+            <li>Click <strong>Load media</strong> below to import image or audio files</li>
+            <li>Drag any item from the list onto a button in your board to assign it</li>
+          </ol>
+        </div>
         <div class="content-media-actions">
           <button class="content-load-media-btn" @click=${this.loadMedia.bind(this)}>+ Load media</button>
           <button @click=${this.deleteSelected}>Delete checked</button>
+          <label class="content-select-all">
+            <input
+              type="checkbox"
+              name="Select all"
+              id="ContentSelectAll"
+              @input=${this.selectAll}
+            />
+            Select All
+          </label>
         </div>
         ${this._uploadState !== null
           ? html`<div class="content-upload-progress">
@@ -352,15 +484,6 @@ export class Content extends DesignerPanel {
               ></progress>
             </div>`
           : html``}
-        <label>
-          <input
-            type="checkbox"
-            name="Select all"
-            id="ContentSelectAll"
-            @input=${this.selectAll}
-          />
-          Select All
-        </label>
         <div
           ref=${(ol) => {
             const self = this;
@@ -401,11 +524,11 @@ export class Content extends DesignerPanel {
                   }}
                 >
                   <label>
-                    <input type="checkbox" name=${name} />
-                    <figure>
-                      ${preview}
-                      <figcaption title=${name}>${name}</figcaption>
-                    </figure>
+                    <figure>${preview}</figure>
+                    <div class="media-meta">
+                      <input type="checkbox" name=${name} />
+                      <span class="media-name" title=${name}>${name}</span>
+                    </div>
                   </label>
                 </li>`;
               });
@@ -425,6 +548,7 @@ export class Content extends DesignerPanel {
             });
           }}
         ></div>
+        </section>
       </div>
     </div>`;
   }

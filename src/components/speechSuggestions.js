@@ -2,7 +2,7 @@ import { html } from "uhtml";
 import Globals from "app/globals";
 import db from "app/db";
 import { TreeBase } from "./treebase";
-import { speakSync } from "./speech";
+import { speakSync, preferredVoice } from "./speech";
 import "css/speechSuggestions.css";
 
 /**
@@ -78,6 +78,13 @@ class SpeechSuggestions {
    * @type {Map<string, string>}
    */
   _symbolCache = new Map();
+
+  /** True after a first tap on the Reset board button; a second tap
+   * within 4 s actually clears the board */
+  _resetArmed = false;
+
+  /** @type {number | null} */
+  _resetArmTimer = null;
 
   get isSupported() {
     return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -427,6 +434,47 @@ class SpeechSuggestions {
   }
 
   /**
+   * First tap arms the button (it turns red); a second tap within 4 s
+   * clears the board. Guards an AAC user against a stray tap wiping
+   * everything.
+   */
+  _onResetClick() {
+    if (this._resetArmTimer !== null) {
+      clearTimeout(this._resetArmTimer);
+      this._resetArmTimer = null;
+    }
+    if (!this._resetArmed) {
+      this._resetArmed = true;
+      this._resetArmTimer = window.setTimeout(() => {
+        this._resetArmed = false;
+        this._resetArmTimer = null;
+        Globals.state?.update();
+      }, 4000);
+      Globals.state?.update();
+      return;
+    }
+    this._resetArmed = false;
+    this._resetBoard();
+  }
+
+  /**
+   * Wipe the board back to the initial state of a new design: no content
+   * rows and the default empty page (same shape as Layout.defaultValue —
+   * duplicated here to avoid importing the designer chain), then restart
+   * so everything reloads from the db.
+   */
+  async _resetBoard() {
+    this._stop();
+    await db.write("content", []);
+    await db.write("layout", {
+      className: "Page",
+      props: {},
+      children: [{ className: "Speech", props: {}, children: [] }],
+    });
+    Globals.restart?.();
+  }
+
+  /**
    * Called after the AAC user speaks a response: archive the exchange into
    * the conversation history, clear the heard sentence and typed steering
    * text, then restart recognition so the next round of suggestions
@@ -488,9 +536,12 @@ class SpeechSuggestions {
     };
 
     const utterance = new SpeechSynthesisUtterance(text);
-    const voices = speechSynthesis.getVoices();
-    if (voices.length) {
-      utterance.voice = voices.find((v) => v.default) || voices[0];
+    const voice = preferredVoice();
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
+    } else {
+      utterance.lang = "en-US";
     }
     utterance.onend = resume;
     utterance.onerror = resume;
@@ -530,6 +581,11 @@ class SpeechSuggestions {
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
     </svg>`;
 
+    const resetIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="1 4 1 10 7 10"/>
+      <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+    </svg>`;
+
     return html`
       <div class=${this._listening ? "ss-bar ss-bar--active" : "ss-bar"}>
         <button
@@ -549,6 +605,17 @@ class SpeechSuggestions {
           @click=${() => this.toggle()}
         >
           ${micIcon}
+        </button>
+
+        <button
+          class=${this._resetArmed ? "ss-reset ss-reset--armed" : "ss-reset"}
+          title=${this._resetArmed ? "Tap again to clear the board" : "Reset board"}
+          aria-label=${this._resetArmed
+            ? "Tap again to clear the board"
+            : "Reset board to a blank design"}
+          @click=${() => this._onResetClick()}
+        >
+          ${resetIcon}
         </button>
 
         ${this._listening

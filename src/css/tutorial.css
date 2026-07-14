@@ -1,0 +1,112 @@
+/* ── Guided tour overlay ── */
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+}
+
+/* full-screen dim for steps with no highlighted element */
+.tutorial-overlay--dim {
+  background: rgb(0 0 0 / 0.45);
+}
+
+/* the spotlight: its huge shadow dims everything around the target */
+.tutorial-highlight {
+  position: fixed;
+  border-radius: var(--radius-md, 10px);
+  box-shadow: 0 0 0 200vmax rgb(0 0 0 / 0.45);
+  outline: 2px solid var(--brand, hsl(150 55% 44%));
+  pointer-events: none;
+  transition:
+    top 0.25s ease,
+    left 0.25s ease,
+    width 0.25s ease,
+    height 0.25s ease;
+}
+
+.tutorial-card {
+  position: fixed;
+  width: min(340px, calc(100vw - 24px));
+  background: var(--surface1, #fff);
+  color: var(--text1, #111);
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: var(--radius-lg, 14px);
+  padding: 1rem 1.1rem;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.25);
+  transition:
+    top 0.25s ease,
+    left 0.25s ease;
+}
+
+.tutorial-card--center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.tutorial-card h3 {
+  margin: 0 1.2rem 0.4rem 0;
+  font-size: 1rem;
+}
+
+.tutorial-card p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--text2, #444);
+}
+
+.tutorial-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.85rem;
+}
+
+.tutorial-progress {
+  font-size: 0.78rem;
+  color: var(--text2, #666);
+}
+
+.tutorial-nav {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tutorial-nav button {
+  padding: 0.35em 0.9em;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--border-color, #ccc);
+  background: var(--surface2, #f4f4f4);
+  color: var(--text1, #111);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tutorial-nav button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tutorial-next {
+  background: var(--brand, hsl(150 55% 44%)) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+.tutorial-close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.45rem;
+  border: none;
+  background: none;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: var(--text2, #666);
+}
+
+.tutorial-close:hover {
+  color: var(--text1, #111);
+}

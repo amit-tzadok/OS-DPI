@@ -141,8 +141,19 @@
   border-bottom: 1px solid var(--border-color);
 }
 
+/* ── Section cards ── */
+.content-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--surface1);
+  padding: 0.8rem 0.9rem;
+}
+
 /* ── Data summary text ── */
-.content > div > p {
+.content-rows-summary {
   font-size: 0.82rem;
   color: var(--text2);
   line-height: 1.55;
@@ -285,14 +296,16 @@ html[color-scheme="dark"] .content-media-tip {
   background: var(--surface3);
 }
 
-/* ── Checkbox label ── */
-.content > div > label {
+/* ── Select All checkbox in the actions row ── */
+.content-select-all {
   font-size: 0.84rem;
   display: flex;
   align-items: center;
   gap: 0.45em;
-  align-self: flex-start;
   color: var(--text2);
+  margin-left: auto;
+  cursor: pointer;
+  user-select: none;
 }
 
 /* ── URL import form ── */
@@ -370,13 +383,11 @@ html[color-scheme="dark"] .content-media-tip {
   object-fit: contain;
 }
 
-#ContentMedia li figcaption {
+#ContentMedia .media-name {
   font-size: 0.68em;
-  max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: center;
   color: var(--text2);
   letter-spacing: 0.01em;
 }
@@ -386,8 +397,17 @@ html[color-scheme="dark"] .content-media-tip {
   opacity: 0.6;
 }
 
+/* checkbox + filename row under the thumbnail */
+#ContentMedia .media-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  max-width: 90px;
+}
+
 #ContentMedia li input[type="checkbox"] {
-  align-self: flex-start;
+  margin: 0;
+  flex-shrink: 0;
   accent-color: var(--brand);
 }
 
@@ -430,7 +450,7 @@ body.designing #ContentMedia li:hover {
 }
 
 body.designing #ContentMedia li:hover figure {
-  transform: scale(2.6);
+  transform: scale(1.5);
   transform-origin: center bottom;
   box-shadow: var(--shadow-xl);
   border-color: var(--brand);
