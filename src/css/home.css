@@ -194,6 +194,55 @@ html[color-scheme="dark"] .hs-brand {
 }
 
 /* ── Secondary action buttons ── */
+/* ── Creation choices (template / AI) ── */
+.hs-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3em;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  background: var(--surface1);
+  color: var(--text1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.hs-choice:hover {
+  background: var(--surface2);
+  border-color: var(--brand);
+  transform: translateY(-1px);
+}
+
+.hs-choice:active {
+  transform: scale(0.99);
+}
+
+.hs-choice-title {
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.hs-choice-desc {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text2);
+}
+
+.hs-error {
+  font-size: 0.8rem;
+  color: hsl(4 65% 45%);
+  margin: 0;
+}
+
 .hs-secondary-btn {
   display: flex;
   align-items: center;

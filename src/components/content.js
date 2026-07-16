@@ -62,6 +62,9 @@ export class Content extends DesignerPanel {
   /** @type {"" | "loading" | "error" | "success"} */
   _aiStatus = "";
   _aiError = "";
+  /** The Home screen's "Generate with AI" choice sets this flag before
+   * navigating here; consume it so the generator opens ready to type into */
+  _aiOpenRequested = !!localStorage.getItem("osdpi-open-ai-generator");
   /** Short description of the layout the last generation built */
   _aiLayoutNote = "";
   /** Note about auto-switch hints in the last generation */
@@ -594,7 +597,10 @@ export class Content extends DesignerPanel {
             ? `${data.length} rows with these fields: ${String([...data.allFields].sort()).replaceAll(",", ", ")}`
             : "No rows loaded — use File → Load Sheet, or generate a board below."}
         </p>
-        <details class="ai-section" ?open=${this._aiStatus === "error"}>
+        <details
+          class="ai-section"
+          ?open=${this._aiStatus === "error" || this._aiOpenRequested}
+        >
           <summary>✨ Generate with AI</summary>
           <div class="ai-body">
             <textarea

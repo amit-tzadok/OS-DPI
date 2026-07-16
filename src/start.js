@@ -101,6 +101,13 @@ export async function start() {
 
   /* Designer */
   Globals.state.define("editing", editing); // for now
+  // The Home screen's "Generate with AI" choice lands here on a fresh
+  // board: open the designer on the Content panel, whose generator is
+  // already expanded (the Content instance consumed the same flag).
+  if (localStorage.getItem("osdpi-open-ai-generator")) {
+    localStorage.removeItem("osdpi-open-ai-generator");
+    Globals.state.define("designerTab", "Content");
+  }
   Globals.designer = /** @type {Designer} */ (
     Designer.fromObject({
       className: "Designer",

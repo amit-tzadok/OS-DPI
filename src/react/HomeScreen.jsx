@@ -57,6 +57,7 @@ function EmptyState({ onNew }) {
 export function HomeScreen() {
   const [boards, setBoards] = useState(/** @type {string[] | null} */ (null));
   const [savedBoards, setSavedBoards] = useState(/** @type {string[]} */ ([]));
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -68,6 +69,28 @@ export function HomeScreen() {
   }, []);
 
   async function handleNew() {
+    const name = await db.uniqueName("new");
+    window.location.hash = name;
+  }
+
+  /** Copy the DEAN example into a fresh design and open it */
+  async function handleTemplate() {
+    try {
+      const { default: pleaseWait } = await import("components/wait");
+      const name = await db.uniqueName("DEAN");
+      await pleaseWait(db.readDesignFromURL("examples/DEAN.osdpi", name));
+      window.location.hash = db.designName;
+    } catch (e) {
+      setError(
+        `Could not load the DEAN template${e instanceof Error ? `: ${e.message}` : ""}`,
+      );
+    }
+  }
+
+  /** New blank board, opening straight into the designer's AI generator */
+  async function handleAI() {
+    // consumed by the Content panel on the next load
+    localStorage.setItem("osdpi-open-ai-generator", "1");
     const name = await db.uniqueName("new");
     window.location.hash = name;
   }
@@ -98,8 +121,26 @@ export function HomeScreen() {
             <svg className="hs-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
               <path d="M12 5v14M5 12h14" />
             </svg>
-            New Board
+            New Blank Board
           </button>
+
+          <button className="hs-choice" onClick={handleTemplate}>
+            <span className="hs-choice-title">🗣️ DEAN Conversation Board</span>
+            <span className="hs-choice-desc">
+              Start from the DEAN template — a ready-made conversation board
+              with live AI response suggestions.
+            </span>
+          </button>
+
+          <button className="hs-choice" onClick={handleAI}>
+            <span className="hs-choice-title">✨ Generate with AI</span>
+            <span className="hs-choice-desc">
+              Describe the board you want and let AI build the vocabulary and
+              layout for you.
+            </span>
+          </button>
+
+          {error && <p className="hs-error" role="alert">{error}</p>}
 
           <div className="hs-divider"><span>or</span></div>
 
