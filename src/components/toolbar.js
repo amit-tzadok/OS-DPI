@@ -185,12 +185,18 @@ function getFileMenuItems(bar) {
       label: "Save Board",
       title:
         "Keep this board in the Hub on this device — reopen it anytime from the Home screen",
-      callback: () => {
+      callback: async () => {
         // Every change is already persisted to browser storage as you edit;
         // this confirms that and clears the unsaved-changes warning.
         db.hasUnsavedChanges = false;
+        // The Hub lives in this browser only — until a design has been
+        // exported at least once, remind that a real backup is one click away.
+        const saved = await db.saved();
+        const backedUp = saved.indexOf(db.designName) >= 0;
         showToast(
-          `"${db.designName}" is saved in the Hub — reopen it anytime from Home`,
+          backedUp
+            ? `"${db.designName}" is saved in the Hub — reopen it anytime from Home`
+            : `"${db.designName}" is saved in the Hub (this browser only) — use File → Download Backup to keep a copy safe`,
         );
       },
     }),

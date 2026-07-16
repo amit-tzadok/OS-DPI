@@ -487,15 +487,26 @@ export class Integer extends Prop {
       ...options,
     };
     super(value, options);
+    this._default = value;
   }
 
   /**
-   * Convert the input into an integer
+   * Convert the input into an integer. Designs from other OS-DPI forks may
+   * supply non-numeric values here (e.g. a state name like "$Rate"); NaN
+   * would silently break whatever consumes the prop, so fall back to the
+   * declared default instead.
    * @param {any} value
    * @returns {number}
    */
   cast(value) {
-    return Math.trunc(+value);
+    const n = Math.trunc(+value);
+    if (Number.isNaN(n)) {
+      console.warn(
+        `Integer prop got non-numeric value ${JSON.stringify(value)}; using default ${this._default}`,
+      );
+      return this._default;
+    }
+    return n;
   }
 }
 
@@ -524,11 +535,21 @@ export class Float extends Prop {
       ...options,
     };
     super(value, options);
+    this._default = value;
   }
 
-  /** @param {any} value */
+  /** Non-numeric input (e.g. a "$State" binding from another OS-DPI fork)
+   * falls back to the declared default rather than propagating NaN
+   * @param {any} value */
   cast(value) {
-    return +value;
+    const n = +value;
+    if (Number.isNaN(n)) {
+      console.warn(
+        `Float prop got non-numeric value ${JSON.stringify(value)}; using default ${this._default}`,
+      );
+      return this._default;
+    }
+    return n;
   }
 }
 

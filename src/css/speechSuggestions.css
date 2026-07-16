@@ -57,6 +57,55 @@ body:not(.designing):has(.ss-bar--active) #suggestions {
   left: 0.75rem;
 }
 
+/* ── "Listening" pill: partner-visible indicator when the mic is live but
+   the full bar is hidden (boards with native integration) ── */
+.ss-listening-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.9rem;
+  margin-left: 0.4rem;
+  border-radius: 9999px;
+  background: hsl(4 70% 46%);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.ss-listening-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #fff;
+  animation: indicator-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes indicator-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* ── Notice: surfaced errors (mic blocked, unsupported browser, bad key) ── */
+.ss-notice {
+  padding: 0.55rem 1rem;
+  margin-left: 0.4rem;
+  border-radius: var(--radius-md, 8px);
+  background: hsl(45 95% 90%);
+  border: 1.5px solid hsl(40 80% 55%);
+  color: hsl(30 60% 22%);
+  font-size: 0.9rem;
+  max-width: 34rem;
+  pointer-events: none;
+}
+
+html[color-scheme="dark"] .ss-notice {
+  background: hsl(40 45% 18%);
+  border-color: hsl(40 70% 45%);
+  color: hsl(45 90% 85%);
+}
+
 /* ── Bar: expanded (full-width strip at bottom) ── */
 .ss-bar--active {
   position: static;

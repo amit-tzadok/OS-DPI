@@ -126,6 +126,31 @@ export class SpeechSuggestions {
     return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   }
 
+  /** Identifies one listening session in the research log; set on _start */
+  _sessionId = "";
+
+  /** Dedupe for resetExchange: the same press can be reported by both the
+   * tap router and the $Speak observer */
+  _lastSpoken = "";
+  _lastSpokenAt = 0;
+
+  /**
+   * Append a structured record to the design's log (the same store the
+   * Logger component uses), so File → Save Log exports the suggestion
+   * data alongside any board-defined logging:
+   * what was heard, what the AI offered, and what the user chose.
+   * @param {string} event
+   * @param {Object} [fields]
+   */
+  _logEvent(event, fields = {}) {
+    db.writeLog({
+      DateTime: new Date().toISOString(),
+      Event: event,
+      Session: this._sessionId,
+      ...fields,
+    });
+  }
+
   /** @param {string[]} texts */
   _publishSuggestionStates(texts) {
     /** @type {Object<string, string>} */
@@ -136,12 +161,44 @@ export class SpeechSuggestions {
     Globals.state?.update(patch);
   }
 
+  /** A user-facing notice ("mic blocked", "needs Chrome", …) shown near
+   * the bar; cleared automatically */
+  _userMessage = "";
+  /** @type {number | null} */
+  _noticeTimer = null;
+  /** Missing-key notice already shown this listening session */
+  _keyNoticeShown = false;
+
+  /** @param {string} message */
+  _notify(message) {
+    this._userMessage = message;
+    if (this._noticeTimer !== null) clearTimeout(this._noticeTimer);
+    this._noticeTimer = window.setTimeout(() => {
+      this._userMessage = "";
+      this._noticeTimer = null;
+      Globals.state?.update();
+    }, 8000);
+    Globals.state?.update();
+  }
+
   toggle() {
     if (this._listening) {
       this._stop();
-    } else {
-      this._start();
+      return;
     }
+    if (!this.isSupported) {
+      this._notify(
+        "Speech recognition isn't available in this browser — use Chrome or Edge.",
+      );
+      return;
+    }
+    if (!window.isSecureContext) {
+      this._notify(
+        "The microphone only works on a secure (https) connection.",
+      );
+      return;
+    }
+    this._start();
   }
 
   /**
@@ -173,9 +230,16 @@ export class SpeechSuggestions {
 
     this._recognition.onerror = (/** @type {SpeechRecognitionErrorEvent} */ event) => {
       // "not-allowed" / "network" — give up; no-speech auto-restarts via onend
-      if (event.error === "not-allowed" || event.error === "network") {
+      if (event.error === "not-allowed") {
         this._listening = false;
-        Globals.state?.update();
+        this._notify(
+          "Microphone access is blocked. Allow the microphone for this site (click the icon in the address bar) and try again.",
+        );
+      } else if (event.error === "network") {
+        this._listening = false;
+        this._notify(
+          "Speech recognition needs an internet connection — check the network and try again.",
+        );
       }
     };
 
@@ -191,11 +255,18 @@ export class SpeechSuggestions {
 
     this._recognition.start();
     this._listening = true;
-    Globals.state?.update();
+    this._keyNoticeShown = false;
+    this._sessionId = new Date().toISOString();
+    this._logEvent("listen_start");
+    // $asr_status drives the Indicator component's status dot on boards
+    // that include one (the CADL designs do)
+    Globals.state?.update({ $asr_status: "on" });
   }
 
   _stop() {
+    if (this._listening) this._logEvent("listen_stop");
     this._listening = false;
+    Globals.state?.update({ $asr_status: "off" });
     if (this._debounceTimer !== null) {
       clearTimeout(this._debounceTimer);
       this._debounceTimer = null;
@@ -256,7 +327,17 @@ export class SpeechSuggestions {
     const key = getGroqKey();
     const transcript = this._transcript.trim();
     const hint = this._userHint.trim();
-    if (!key || !this._listening) return;
+    if (!this._listening) return;
+    if (!key) {
+      // once per listening session, not on every debounced transcript update
+      if (!this._keyNoticeShown) {
+        this._keyNoticeShown = true;
+        this._notify(
+          "AI suggestions need a Groq API key — add one in the designer's AI panel.",
+        );
+      }
+      return;
+    }
     if (!followUp && !transcript && !hint) return;
 
     // Same inputs as the suggestions already on screen? Leave them alone.
@@ -317,6 +398,7 @@ export class SpeechSuggestions {
 
     this._aiStatus = "loading";
     Globals.state?.update();
+    const fetchStarted = performance.now();
 
     try {
       const response = await fetch(
@@ -346,7 +428,20 @@ export class SpeechSuggestions {
         },
       );
 
-      if (!response.ok) throw new Error(`API error ${response.status}`);
+      if (!response.ok) {
+        // A class sharing one key will hit per-key rate limits; students
+        // with a mistyped key get 401s. Neither should read as a mystery.
+        if (response.status === 429) {
+          this._notify(
+            "AI suggestion rate limit reached — wait a minute and try again (or use your own Groq API key).",
+          );
+        } else if (response.status === 401 || response.status === 403) {
+          this._notify(
+            "The Groq API key was rejected — check it in the designer's AI panel.",
+          );
+        }
+        throw new Error(`API error ${response.status}`);
+      }
 
       // a newer fetch started (or listening stopped) while we waited
       if (seq !== this._fetchSeq || !this._listening) return;
@@ -380,6 +475,17 @@ export class SpeechSuggestions {
       this._suggestions = texts;
       this._aiStatus = "";
       this._publishSuggestionStates(texts);
+
+      // research log: the stimulus and each offered response, with rank
+      const latencyMs = Math.round(performance.now() - fetchStarted);
+      this._logEvent(followUp ? "followup_prompt" : "heard", {
+        Text: transcript,
+        Hint: hint,
+        LatencyMs: latencyMs,
+      });
+      texts.forEach((t, i) =>
+        this._logEvent("suggestion", { Text: t, Rank: i + 1 }),
+      );
 
       // look up a pictogram for each suggestion (cached per keyword)
       const symbols = await Promise.all(
@@ -569,8 +675,22 @@ export class SpeechSuggestions {
    * text, then restart recognition so the next round of suggestions
    * responds to whatever is said next — with full context.
    * @param {string} [spokenText] the response the AAC user just spoke
+   * @param {string} [source] how it was chosen, for the research log:
+   *   "chip" (floating bar), "board" (a board button bound to a
+   *   suggestion), "label" (a plain vocabulary button)
    */
-  resetExchange(spokenText = "") {
+  resetExchange(spokenText = "", source = "") {
+    // One press can arrive twice: directly from the tap router and again
+    // from the render-cycle $Speak observer. Treat an identical spoken text
+    // within a couple seconds as the same turn.
+    if (spokenText) {
+      const now = Date.now();
+      if (spokenText === this._lastSpoken && now - this._lastSpokenAt < 2000) {
+        return;
+      }
+      this._lastSpoken = spokenText;
+      this._lastSpokenAt = now;
+    }
     if (this._debounceTimer !== null) {
       clearTimeout(this._debounceTimer);
       this._debounceTimer = null;
@@ -578,6 +698,13 @@ export class SpeechSuggestions {
     const heard = this._transcript.trim();
     if (heard) this._history.push({ speaker: "Partner", text: heard });
     if (spokenText) this._history.push({ speaker: "User", text: spokenText });
+    if (spokenText && this._listening) {
+      this._logEvent("chosen", {
+        Text: spokenText,
+        Source: source,
+        Rank: this._suggestions.indexOf(spokenText) + 1 || "",
+      });
+    }
     // keep the prompt small: only the most recent turns
     if (this._history.length > 12) {
       this._history = this._history.slice(-12);
@@ -608,6 +735,7 @@ export class SpeechSuggestions {
    */
   _quick(text) {
     if (!text) return;
+    this._logEvent("quick_phrase", { Text: text });
     this._pausedForSpeech = true;
     this._resumePrefix = this._transcript;
     try {
@@ -645,7 +773,7 @@ export class SpeechSuggestions {
     // speakSync only — patching $Speak here too would make any Speech
     // component on the board speak the same text a second time.
     speakSync(text);
-    this.resetExchange(text);
+    this.resetExchange(text, "chip");
     Globals.state?.update();
   }
 
@@ -682,19 +810,24 @@ export class SpeechSuggestions {
       Globals.state?.hasBeenUpdated("$Speak") &&
       this._suggestions.includes(spoken)
     ) {
-      this.resetExchange(spoken);
+      this.resetExchange(spoken, "board");
     }
-
-    if (!this.isSupported) return html`<div />`;
 
     const editIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
     </svg>`;
 
+    // Problems that would otherwise fail silently (no Chrome speech API,
+    // mic blocked, insecure origin) surface here for either branch below.
+    const notice = this._userMessage
+      ? html`<div class="ss-notice" role="alert">${this._userMessage}</div>`
+      : html``;
+
     // A board with native integration drives listening and shows suggestions
-    // through its own buttons; the only thing it can't provide is a way back
-    // to the editor, so keep just that corner button.
+    // through its own buttons; keep the way back to the editor, and — since
+    // the pulsing mic of the full bar is hidden — a plainly visible
+    // "Listening" pill so conversation partners know the mic is live.
     if (this._hasNativeIntegration) {
       return html`
         <div class="ss-bar ss-bar--solo">
@@ -706,6 +839,12 @@ export class SpeechSuggestions {
           >
             ${editIcon}
           </button>
+          ${this._listening
+            ? html`<span class="ss-listening-pill" role="status">
+                <span class="ss-listening-dot"></span> Listening
+              </span>`
+            : html``}
+          ${notice}
         </div>
       `;
     }
@@ -754,6 +893,7 @@ export class SpeechSuggestions {
           ${resetIcon}
         </button>
 
+        ${notice}
         ${this._listening
           ? html`
             <div class="ss-content">

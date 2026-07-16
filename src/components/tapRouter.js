@@ -47,12 +47,12 @@ export function attachTapRouter(root) {
       // row (a complete reply) is the user taking their conversational turn.
       if (button.dataset.ComponentType === "Display" || button.dataset.suggestion) {
         const spoken = String(Globals.state?.get("$Speak") || "").trim();
-        if (spoken) speechSuggestions.resetExchange(spoken);
+        if (spoken) speechSuggestions.resetExchange(spoken, "board");
       }
     } else if (label) {
       speakSync(label);
       // archive this exchange and listen fresh for the next sentence
-      speechSuggestions.resetExchange(label);
+      speechSuggestions.resetExchange(label, "label");
     }
   });
 }
