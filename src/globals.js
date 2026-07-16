@@ -13,6 +13,7 @@
  * @property {import('./components/designer').Designer} designer
  * @property {import('./components/errors').Messages} error
  * @property {function():Promise<void>} restart
+ * @property {import('./components/speechSuggestions').SpeechSuggestions} speechSuggestions
  */
 
 /** @type {GlobalsObject} */

@@ -182,6 +182,19 @@ export function getPanelMenuItems(type) {
 function getFileMenuItems(bar) {
   return [
     new MenuItem({
+      label: "Save Board",
+      title:
+        "Keep this board in the Hub on this device — reopen it anytime from the Home screen",
+      callback: () => {
+        // Every change is already persisted to browser storage as you edit;
+        // this confirms that and clears the unsaved-changes warning.
+        db.hasUnsavedChanges = false;
+        showToast(
+          `"${db.designName}" is saved in the Hub — reopen it anytime from Home`,
+        );
+      },
+    }),
+    new MenuItem({
       label: "Open",
       callback: () => {
         bar.designListDialog.open();
@@ -226,9 +239,17 @@ function getFileMenuItems(bar) {
       },
     }),
     new MenuItem({
-      label: "Save & Close",
-      title: "Download a backup, remove from browser storage, and close this window",
+      label: "Export & Remove",
+      title:
+        "Download an .osdpi backup, remove this board from the Hub, and close this window",
       callback: async () => {
+        if (
+          !window.confirm(
+            `This downloads a backup file and removes "${db.designName}" from the Hub on this device. ` +
+              `To keep working on it later, use Save Board instead. Continue?`,
+          )
+        )
+          return;
         const saved = await db.saved();
         if (saved.indexOf(db.designName) < 0) {
           try {

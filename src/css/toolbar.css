@@ -423,10 +423,6 @@ dialog#ImportURL input {
   color: hsl(35 80% 42%);
 }
 
-@media (prefers-color-scheme: dark) {
-  .board-card-status.saved { color: hsl(var(--hue) 50% 68%); }
-  .board-card-status.unsaved { color: hsl(38 80% 62%); }
-}
 html[color-scheme="dark"] .board-card-status.saved { color: hsl(var(--hue) 50% 68%); }
 html[color-scheme="dark"] .board-card-status.unsaved { color: hsl(38 80% 62%); }
 
@@ -478,16 +474,6 @@ html[color-scheme="dark"] .board-card-status.unsaved { color: hsl(38 80% 62%); }
   border-color: hsl(0 55% 68%);
 }
 
-@media (prefers-color-scheme: dark) {
-  .board-card-remove:hover {
-    background: hsl(0 35% 18%);
-    border-color: hsl(0 45% 42%);
-  }
-  .board-card-current {
-    background: hsl(var(--hue) 35% 18% / 0.6);
-    border-color: hsl(var(--hue) 50% 44%);
-  }
-}
 html[color-scheme="dark"] .board-card-remove:hover {
   background: hsl(0 35% 18%);
   border-color: hsl(0 45% 42%);

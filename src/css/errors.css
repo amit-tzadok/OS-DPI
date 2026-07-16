@@ -64,14 +64,6 @@ div#messages {
   padding: 0.4em 0.7em;
 }
 
-@media (prefers-color-scheme: dark) {
-  .error {
-    background-color: hsl(var(--failure-hue) 30% 16%);
-    color: hsl(var(--failure-hue) 60% 72%);
-    border-color: hsl(var(--failure-hue) 30% 28%);
-  }
-}
-
 html[color-scheme="dark"] .error {
   background-color: hsl(var(--failure-hue) 30% 16%);
   color: hsl(var(--failure-hue) 60% 72%);
@@ -154,12 +146,6 @@ html[color-scheme="dark"] .error {
 
 .toast-dismiss:hover {
   opacity: 1;
-}
-
-@media (prefers-color-scheme: dark) {
-  .toast-error { background: hsl(var(--failure-hue) 30% 14%); border-color: hsl(var(--failure-hue) 30% 28%); color: hsl(var(--failure-hue) 60% 72%); }
-  .toast-info  { background: hsl(var(--hue) 28% 14%); border-color: hsl(var(--hue) 28% 30%); color: hsl(var(--hue) 50% 72%); }
-  .toast-success { background: hsl(var(--hue) 28% 12%); border-color: hsl(var(--hue) 30% 26%); color: hsl(var(--hue) 50% 62%); }
 }
 
 html[color-scheme="dark"] .toast-error { background: hsl(var(--failure-hue) 30% 14%); border-color: hsl(var(--failure-hue) 30% 28%); color: hsl(var(--failure-hue) 60% 72%); }

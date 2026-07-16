@@ -170,12 +170,6 @@ button.button.btn-drag-over {
   box-shadow: 0 0 0 4px hsl(var(--hue) 60% 60% / 0.15);
 }
 
-@media (prefers-color-scheme: dark) {
-  button.button.btn-drag-over {
-    background: hsl(var(--hue) 40% 20% / 0.5);
-  }
-}
-
 html[color-scheme="dark"] button.button.btn-drag-over {
   background: hsl(var(--hue) 40% 20% / 0.5);
 }

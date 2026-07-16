@@ -52,6 +52,13 @@ export const Functions = {
   open_editor: () => {
     Globals.state.update({ editing: !Globals.state.get("editing") });
   },
+  /** Let a board's own controls drive the speech-suggestions engine
+   * directly (e.g. a board-native "ASR On/Off" button) instead of only
+   * the generic floating mic control. */
+  toggle_speech_suggestions: () => {
+    Globals.speechSuggestions?.toggle();
+    return "";
+  },
 };
 
 /**

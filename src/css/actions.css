@@ -84,12 +84,6 @@ div.actions div.scroll {
   background-color: hsl(var(--hue) 30% 97%);
 }
 
-@media (prefers-color-scheme: dark) {
-  #designer .actions tbody[highlight] {
-    background-color: hsl(var(--hue) 20% 14%);
-  }
-}
-
 html[color-scheme="dark"] #designer .actions tbody[highlight] {
   background-color: hsl(var(--hue) 20% 14%);
 }

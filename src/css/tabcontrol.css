@@ -145,10 +145,6 @@
 }
 
 /* ── Dark mode tab bar ── */
-@media (prefers-color-scheme: dark) {
-  .tabcontrol .buttons button:hover { background-color: hsl(0 0% 100% / 0.08); }
-  .tabcontrol .buttons button[active] { background-color: var(--surface4); }
-}
 html[color-scheme="dark"] .tabcontrol .buttons button:hover { background-color: hsl(0 0% 100% / 0.08); }
 html[color-scheme="dark"] .tabcontrol .buttons button[active] { background-color: var(--surface4); }
 

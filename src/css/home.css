@@ -55,23 +55,6 @@
   pointer-events: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  .hs-header {
-    background: linear-gradient(
-      160deg,
-      hsl(var(--hue) 18% 12%) 0%,
-      var(--surface1) 55%
-    );
-  }
-  .hs-header::before {
-    background: radial-gradient(
-      circle,
-      hsl(var(--hue) 65% 55% / 0.14) 0%,
-      transparent 65%
-    );
-  }
-}
-
 html[color-scheme="dark"] .hs-header {
   background: linear-gradient(
     160deg,
@@ -104,13 +87,6 @@ html[color-scheme="dark"] .hs-header::before {
   border-radius: var(--radius-full);
   border: 1px solid hsl(var(--hue) 40% 88%);
   box-shadow: var(--shadow-xs);
-}
-
-@media (prefers-color-scheme: dark) {
-  .hs-brand {
-    background: hsl(var(--hue) 30% 16%);
-    border-color: hsl(var(--hue) 28% 28%);
-  }
 }
 
 html[color-scheme="dark"] .hs-brand {
@@ -353,14 +329,6 @@ html[color-scheme="dark"] .hs-brand {
   letter-spacing: 0.03em;
 }
 
-@media (prefers-color-scheme: dark) {
-  .hs-card-badge {
-    color: hsl(var(--warning-hue) 75% 70%);
-    background: hsl(var(--warning-hue) 40% 16%);
-    border-color: hsl(var(--warning-hue) 35% 28%);
-  }
-}
-
 html[color-scheme="dark"] .hs-card-badge {
   color: hsl(var(--warning-hue) 75% 70%);
   background: hsl(var(--warning-hue) 40% 16%);
@@ -419,12 +387,6 @@ html[color-scheme="dark"] .hs-card-badge {
 .hs-feature-icon svg {
   width: 100%;
   height: 100%;
-}
-
-@media (prefers-color-scheme: dark) {
-  .hs-feature-icon {
-    background: hsl(var(--hue) 30% 16%);
-  }
 }
 
 html[color-scheme="dark"] .hs-feature-icon {

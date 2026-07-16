@@ -21,6 +21,7 @@ import { Content } from "components/content";
 import { workerCheckForUpdate } from "components/serviceWorker";
 import { accessed } from "./eval";
 import { speechSuggestions } from "components/speechSuggestions";
+import { attachTapRouter } from "components/tapRouter";
 
 /** let me wait for the page to load */
 const pageLoaded = new Promise((resolve) => {
@@ -124,6 +125,7 @@ export async function start() {
   monitor.init();
 
   /* Speech Suggestions */
+  Globals.speechSuggestions = speechSuggestions;
   speechSuggestions._setupDirectSpeech();
 
   function renderUI() {
@@ -170,6 +172,10 @@ export async function start() {
   Globals.state.observe(debounce(renderUI));
   callAfterRender(() => Globals.designer.restoreFocus());
   renderUI();
+
+  // Let plain taps drive the board when no access Method is active
+  const uiRoot = document.getElementById("UI");
+  if (uiRoot) attachTapRouter(uiRoot);
 
   // Warn before closing if there are unsaved changes
   window.addEventListener("beforeunload", (e) => {

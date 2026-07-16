@@ -65,6 +65,20 @@
   resize: vertical;
 }
 
+.ai-key > summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text2);
+  user-select: none;
+}
+
+.ai-key-note {
+  margin: 0.3em 0;
+  font-size: 0.76rem;
+  color: var(--text2);
+}
+
 .ai-row {
   display: flex;
   gap: 0.6em;
@@ -200,14 +214,6 @@
   font-weight: 600;
   color: var(--brand);
   margin-bottom: 0;
-}
-
-@media (prefers-color-scheme: dark) {
-  .content-media-tip {
-    background: hsl(var(--hue) 25% 14%);
-    border-color: hsl(var(--hue) 28% 26%);
-    border-left-color: var(--brand);
-  }
 }
 
 html[color-scheme="dark"] .content-media-tip {

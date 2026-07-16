@@ -3,6 +3,7 @@ import Globals from "app/globals";
 import db from "app/db";
 import { TreeBase } from "./treebase";
 import { speakSync, preferredVoice } from "./speech";
+import { getGroqKey } from "./groq";
 import "css/speechSuggestions.css";
 
 /**
@@ -16,8 +17,43 @@ import "css/speechSuggestions.css";
  * Rendered via safeRender("suggestions", …) inside renderUI() so it stays in
  * sync with the main render cycle.
  */
-class SpeechSuggestions {
+/** Find a Grid with the given name anywhere in the layout tree
+ * @param {any} node @param {string} name */
+function findGridNamed(node, name) {
+  if (node?.className === "Grid" && node.name?.value === name) return node;
+  for (const child of node?.children || []) {
+    const found = findGridNamed(child, name);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** True if some component in the layout binds directly to one of the
+ * $Suggestion1.."N" states — the signal that a board displays live
+ * suggestions itself (e.g. through its own Display components) rather than
+ * needing the generic floating bar or a dedicated suggestions grid.
+ * @param {any} node */
+function usesSuggestionStates(node) {
+  if (!node) return false;
+  for (const prop of Object.values(node.props || {})) {
+    if (/^\$Suggestion\d+$/.test(/** @type {any} */ (prop).text || "")) {
+      return true;
+    }
+  }
+  for (const child of node.children || []) {
+    if (usesSuggestionStates(child)) return true;
+  }
+  return false;
+}
+
+export class SpeechSuggestions {
   className = "SpeechSuggestions";
+
+  /** Live suggestions are also exposed as these state names (padded with ""
+   * past the end) so a board's own Display/Grid components can bind to a
+   * specific slot directly, instead of relying on the floating chip bar or
+   * the generic "suggestions" grid convention. */
+  static MAX_SUGGESTION_SLOTS = 6;
 
   /**
    * Floor-holding phrases: spoken immediately so the partner knows the
@@ -88,6 +124,16 @@ class SpeechSuggestions {
 
   get isSupported() {
     return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  }
+
+  /** @param {string[]} texts */
+  _publishSuggestionStates(texts) {
+    /** @type {Object<string, string>} */
+    const patch = {};
+    for (let i = 0; i < SpeechSuggestions.MAX_SUGGESTION_SLOTS; i++) {
+      patch[`$Suggestion${i + 1}`] = texts[i] || "";
+    }
+    Globals.state?.update(patch);
   }
 
   toggle() {
@@ -166,6 +212,22 @@ class SpeechSuggestions {
     this._suggestions = [];
     this._aiStatus = "";
     this._lastSignature = "";
+    this._publishSuggestionStates([]);
+    // remove any live suggestions from the board, keeping the vocabulary
+    if (Globals.data?.contentRows.some((row) => row.suggestion)) {
+      const baseRows = Globals.data.contentRows.filter(
+        (row) => !row.suggestion,
+      );
+      Globals.data.setContent(baseRows);
+      db.write("content", baseRows);
+    }
+    // collapse the (now empty) suggestions strip so the board reclaims
+    // its space until the next listening session
+    const strip = findGridNamed(Globals.layout, "suggestions");
+    if (strip && +strip.scale.value !== 0) {
+      strip.scale.set(0);
+      db.write("layout", Globals.layout.toObject({ omittedProps: [] }));
+    }
     Globals.state?.update();
   }
 
@@ -191,7 +253,7 @@ class SpeechSuggestions {
    * AAC user has just spoken a response, instead of replies to the partner
    */
   async _fetchSuggestions(followUp = false) {
-    const key = (import.meta.env.VITE_GROQ_API_KEY || "").trim();
+    const key = getGroqKey();
     const transcript = this._transcript.trim();
     const hint = this._userHint.trim();
     if (!key || !this._listening) return;
@@ -317,7 +379,7 @@ class SpeechSuggestions {
 
       this._suggestions = texts;
       this._aiStatus = "";
-      Globals.state?.update();
+      this._publishSuggestionStates(texts);
 
       // look up a pictogram for each suggestion (cached per keyword)
       const symbols = await Promise.all(
@@ -329,13 +391,40 @@ class SpeechSuggestions {
 
       // ── Push suggestions into the board ──────────────────────────────────
       if (items.length > 0 && Globals.data) {
-        const rows = items.map((/** @type {{text: string}} */ s, /** @type {number} */ i) =>
-          symbols[i] ? { label: s.text, symbol: symbols[i] } : { label: s.text },
+        const suggestionRows = items.map(
+          (/** @type {{text: string}} */ s, /** @type {number} */ i) =>
+            symbols[i]
+              ? { label: s.text, symbol: symbols[i], suggestion: "1" }
+              : { label: s.text, suggestion: "1" },
         );
-        Globals.data.setContent(rows);
-        await db.write("content", rows);
-        await this._fitGrid(rows.length);
-        this._setupDirectSpeech();
+        const strip = findGridNamed(Globals.layout, "suggestions");
+        if (strip) {
+          // The board has a dedicated live-suggestions region (AI-generated
+          // boards do): refresh only those rows and leave the vocabulary,
+          // layout, and grid sizes alone so the board keeps working.
+          const baseRows = Globals.data.contentRows.filter(
+            (row) => !row.suggestion,
+          );
+          const rows = [...baseRows, ...suggestionRows];
+          Globals.data.setContent(rows);
+          await db.write("content", rows);
+          // expand the strip (it sits collapsed at scale 0 while idle)
+          if (+strip.scale.value !== 1.5) {
+            strip.scale.set(1.5);
+            await db.write(
+              "layout",
+              Globals.layout.toObject({ omittedProps: [] }),
+            );
+          }
+        } else if (Globals.data.contentRows.length === 0) {
+          // Blank canvas (e.g. right after Reset) and no suggestions region —
+          // the suggestions become the whole board. A board that already has
+          // real content just doesn't get a tappable grid version; the
+          // floating chips above still work regardless.
+          Globals.data.setContent(suggestionRows);
+          await db.write("content", suggestionRows);
+          await this._fitGrid(suggestionRows.length);
+        }
       }
     } catch {
       this._aiStatus = "error";
@@ -553,9 +642,11 @@ class SpeechSuggestions {
 
   /** @param {string} text */
   _select(text) {
+    // speakSync only — patching $Speak here too would make any Speech
+    // component on the board speak the same text a second time.
     speakSync(text);
     this.resetExchange(text);
-    Globals.state?.update({ $Speak: text });
+    Globals.state?.update();
   }
 
   safeTemplate() {
@@ -566,19 +657,64 @@ class SpeechSuggestions {
     }
   }
 
+  /** A board with its own "suggestions" grid is expected to also provide
+   * its own control (like DEAN's on-board "ASR On/Off" button, wired via
+   * the toggle_speech_suggestions() eval function) — the generic floating
+   * bar would just be a redundant second way to do the same thing. */
+  get _hasNativeIntegration() {
+    return (
+      !!findGridNamed(Globals.layout, "suggestions") ||
+      usesSuggestionStates(Globals.layout)
+    );
+  }
+
   template() {
+    // Rendered every state cycle (via safeRender), so this doubles as our
+    // observer: when a board-native button press speaks one of the live
+    // suggestions ($Speak was just set to it, and the board's Speech
+    // component handles the audio), close out the exchange exactly like
+    // tapping the equivalent floating chip — archive it to the history and
+    // fetch follow-up suggestions.
+    const spoken = String(Globals.state?.get("$Speak") || "").trim();
+    if (
+      this._listening &&
+      spoken &&
+      Globals.state?.hasBeenUpdated("$Speak") &&
+      this._suggestions.includes(spoken)
+    ) {
+      this.resetExchange(spoken);
+    }
+
     if (!this.isSupported) return html`<div />`;
+
+    const editIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>`;
+
+    // A board with native integration drives listening and shows suggestions
+    // through its own buttons; the only thing it can't provide is a way back
+    // to the editor, so keep just that corner button.
+    if (this._hasNativeIntegration) {
+      return html`
+        <div class="ss-bar ss-bar--solo">
+          <button
+            class="ss-edit"
+            title="Back to editor"
+            aria-label="Back to editor"
+            @click=${() => Globals.state?.update({ editing: true })}
+          >
+            ${editIcon}
+          </button>
+        </div>
+      `;
+    }
 
     const micIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <rect x="9" y="2" width="6" height="13" rx="3"/>
       <path d="M5 10a7 7 0 0 0 14 0"/>
       <line x1="12" y1="20" x2="12" y2="23"/>
       <line x1="8" y1="23" x2="16" y2="23"/>
-    </svg>`;
-
-    const editIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
     </svg>`;
 
     const resetIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

@@ -120,12 +120,6 @@ body.designing .grid button.grid-drag-over {
   background: hsl(var(--hue) 60% 96% / 0.7);
 }
 
-@media (prefers-color-scheme: dark) {
-  body.designing .grid button.grid-drag-over {
-    background: hsl(var(--hue) 40% 20% / 0.5);
-  }
-}
-
 html[color-scheme="dark"] body.designing .grid button.grid-drag-over {
   background: hsl(var(--hue) 40% 20% / 0.5);
 }

@@ -86,12 +86,6 @@ div#UI {
   background: var(--brand);
 }
 
-@media (prefers-color-scheme: dark) {
-  ::-webkit-scrollbar-thumb {
-    background: hsl(var(--hue) 14% 35%);
-  }
-}
-
 html[color-scheme="dark"] ::-webkit-scrollbar-thumb {
   background: hsl(var(--hue) 14% 35%);
 }

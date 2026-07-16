@@ -151,7 +151,12 @@ export function HomeScreen() {
                       </div>
                       <span className="hs-card-name">{name}</span>
                       {!isSaved && (
-                        <span className="hs-card-badge">Unsaved</span>
+                        <span
+                          className="hs-card-badge"
+                          title="Stored on this device but not exported — use File → Download Backup in the editor to keep an .osdpi copy"
+                        >
+                          No backup
+                        </span>
                       )}
                     </button>
                   );

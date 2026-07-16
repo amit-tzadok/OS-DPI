@@ -385,15 +385,6 @@ details summary > * {
 }
 
 /* ── Dark mode tab bar ── */
-@media (prefers-color-scheme: dark) {
-  .designer .buttons {
-    background-color: var(--surface3);
-    border-bottom-color: var(--border-color);
-  }
-  .designer .buttons button { color: var(--text2); }
-  .designer .buttons button:hover { background-color: hsl(0 0% 100% / 0.08); }
-  .designer .buttons button[active] { background-color: var(--surface4); color: var(--brand); }
-}
 html[color-scheme="dark"] .designer .buttons {
   background-color: var(--surface3);
   border-bottom-color: var(--border-color);

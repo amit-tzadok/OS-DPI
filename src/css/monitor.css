@@ -43,12 +43,6 @@
   background: hsl(var(--hue) 60% 95%);
 }
 
-@media (prefers-color-scheme: dark) {
-  #monitor table tr[updated] {
-    background: hsl(var(--hue) 30% 18%);
-  }
-}
-
 html[color-scheme="dark"] #monitor table tr[updated] {
   background: hsl(var(--hue) 30% 18%);
 }

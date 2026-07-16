@@ -17,6 +17,7 @@ import "./layout";
 import "./actions";
 import "./hotkeys";
 import "./customize";
+import "./indicator";
 import "./img-db";
 import "./video-db";
 import "./access/method";

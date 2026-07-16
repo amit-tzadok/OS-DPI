@@ -6,6 +6,19 @@ import { toString } from "./slots";
 import { cursor } from "./notes";
 
 /**
+ * Board designs from other OS-DPI forks sometimes bind pitch/rate/volume to
+ * a state name (e.g. "$Rate") rather than a number; this app's Speech props
+ * are plain floats, so that comes through as NaN. Assigning a non-finite
+ * value to SpeechSynthesisUtterance's rate/pitch/volume throws, so fall back
+ * to the neutral default instead of letting one bad value silence speech.
+ * @param {number} value
+ * @param {number} fallback
+ */
+function finiteOr(value, fallback) {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+/**
  * @param {string} message
  * @param {string} voiceURI
  * @param {number} pitch
@@ -23,9 +36,9 @@ export async function speak(message, voiceURI, pitch, rate, volume) {
   } else {
     utterance.lang = "en-US";
   }
-  utterance.pitch = pitch;
-  utterance.rate = rate;
-  utterance.volume = volume;
+  utterance.pitch = finiteOr(pitch, 1);
+  utterance.rate = finiteOr(rate, 1);
+  utterance.volume = finiteOr(volume, 1);
   speechSynthesis.cancel();
   speechSynthesis.speak(utterance);
 }
@@ -54,9 +67,9 @@ class Speech extends TreeBase {
     } else {
       utterance.lang = "en-US";
     }
-    utterance.pitch = this.pitch.value;
-    utterance.rate = this.rate.value;
-    utterance.volume = this.volume.value;
+    utterance.pitch = finiteOr(this.pitch.value, 1);
+    utterance.rate = finiteOr(this.rate.value, 1);
+    utterance.volume = finiteOr(this.volume.value, 1);
     utterance.addEventListener("boundary", (event) => {
       document.dispatchEvent(
         new SpeechSynthesisEvent("boundary", {
@@ -100,11 +113,33 @@ function isUSEnglish(voice) {
   return /^en[-_]US/i.test(voice.lang);
 }
 
-/** Keep the US voices; fall back to the full list on a system with none
+/** macOS ships novelty voices (Bells, Boing, Zarvox, …), legacy robotic
+ * voices (Fred, Junior, …), and cartoonish character voices (Grandma,
+ * Rocko, …). None are appropriate for an AAC user's voice, so keep them
+ * out of the picker and out of the default-voice selection. */
+const NOVELTY_VOICES = new Set([
+  "Albert", "Bad News", "Bahh", "Bells", "Boing", "Bubbles", "Cellos",
+  "Deranged", "Good News", "Jester", "Organ", "Superstar", "Trinoids",
+  "Whisper", "Wobble", "Zarvox",
+  "Fred", "Junior", "Kathy", "Ralph",
+  "Eddy", "Flo", "Grandma", "Grandpa", "Reed", "Rocko", "Sandy", "Shelley",
+]);
+
+/** @param {SpeechSynthesisVoice} voice */
+function isGenericVoice(voice) {
+  // names may carry a locale suffix, e.g. "Eddy (English (US))"
+  const baseName = voice.name.split("(")[0].trim();
+  return !NOVELTY_VOICES.has(baseName);
+}
+
+/** Keep the generic US voices; fall back rather than offer nothing on
+ * systems where the filters would leave an empty list
  * @param {SpeechSynthesisVoice[]} all */
 function usOnly(all) {
-  const us = all.filter(isUSEnglish);
-  return us.length ? us : all;
+  const generic = all.filter(isGenericVoice);
+  const candidates = generic.length ? generic : all;
+  const us = candidates.filter(isUSEnglish);
+  return us.length ? us : candidates;
 }
 
 /** @type{SpeechSynthesisVoice[]} */

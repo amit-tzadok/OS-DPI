@@ -7,6 +7,7 @@ import "css/content.css";
 import pleaseWait from "./wait";
 import Globals from "app/globals";
 import { fileOpen } from "browser-fs-access";
+import { getGroqKey, setGroqKey } from "./groq";
 
 /** Depth-first search for a node with the given className
  * @param {any} node @param {string} cls */
@@ -63,6 +64,8 @@ export class Content extends DesignerPanel {
   _aiError = "";
   /** Short description of the layout the last generation built */
   _aiLayoutNote = "";
+  /** Note about auto-switch hints in the last generation */
+  _aiNextNote = "";
 
   /** After AI generation, rebuild the board to fit the generated rows.
    * Uses a Display message strip plus, when the vocabulary is organised
@@ -84,10 +87,53 @@ export class Content extends DesignerPanel {
     }
     if (categories.size < 2 || categories.size > 8) style = "simple";
 
+    // Message window plus a Clear button: words accumulate in the Display,
+    // pressing it speaks the sentence, Clear starts over.
     const display = {
-      className: "Display",
-      props: { stateName: "$Display", background: "white", fontSize: "2", scale: "1" },
-      children: [],
+      className: "Stack",
+      props: { direction: "row", background: "", scale: "1" },
+      children: [
+        {
+          className: "Display",
+          props: {
+            stateName: "$Display",
+            Name: "display",
+            background: "white",
+            fontSize: "2",
+            scale: "5",
+          },
+          children: [],
+        },
+        {
+          className: "Button",
+          props: { label: "Clear", name: "clear", background: "", scale: "1" },
+          children: [],
+        },
+      ],
+    };
+
+    // Live suggestions region: while the speaker is listening
+    // (speechSuggestions.js), AI conversation suggestions continuously
+    // refresh these rows; the rest of the board is left alone.
+    // Starts at scale 0 (collapsed) — speechSuggestions expands it when
+    // suggestions arrive and collapses it again when the mic stops.
+    const suggestionStrip = {
+      className: "Grid",
+      props: {
+        rows: 2,
+        columns: 3,
+        name: "suggestions",
+        background: "white",
+        fillItems: true,
+        scale: "0",
+      },
+      children: [
+        {
+          className: "GridFilter",
+          props: { field: "#suggestion", operator: "equals", value: "'1'" },
+          children: [],
+        },
+      ],
     };
 
     /** @type {object[]} */
@@ -107,7 +153,7 @@ export class Content extends DesignerPanel {
           ],
         })),
       };
-      children = [display, tabs];
+      children = [display, suggestionStrip, tabs];
       note = `in ${categories.size} tab pages`;
     } else if (style === "categories") {
       const radio = {
@@ -122,14 +168,22 @@ export class Content extends DesignerPanel {
       const maxCount = Math.max(...categories.values());
       children = [
         display,
+        suggestionStrip,
         radio,
-        gridSpec(maxCount, "6", [
+        gridSpec(maxCount, "5", [
           { field: "#category", operator: "equals", value: "$category" },
         ]),
       ];
       note = `with a ${categories.size}-category filter`;
     } else {
-      children = [display, gridSpec(rows.length, "7")];
+      children = [
+        display,
+        suggestionStrip,
+        // exclude the live suggestion rows — they render in the strip above
+        gridSpec(rows.length, "5.5", [
+          { field: "#suggestion", operator: "empty", value: "" },
+        ]),
+      ];
       note = "in a simple grid";
     }
 
@@ -149,8 +203,12 @@ export class Content extends DesignerPanel {
     return note;
   }
 
-  /** Add a Speech component + a speak-and-show-on-press action if not already wired up */
-  _setupSpeech() {
+  /** Add a Speech component + the sentence-building actions:
+   * grid presses speak the word and append it to the message window,
+   * pressing the message window speaks the whole sentence, and the
+   * Clear button empties it.
+   */
+  _setupActions() {
     // Add Speech component to the Page if absent
     const page = findNode(Globals.layout, "Page");
     if (page && !page.children.some((c) => c.className === "Speech")) {
@@ -163,54 +221,164 @@ export class Content extends DesignerPanel {
 
     if (!Globals.actions) return;
 
-    // Only the first matching rule fires, so $Speak and $Display must be
-    // updates on the same "any press" Action.
-    const speakAction = Globals.actions.children.find(
-      (a) =>
-        a.className === "Action" &&
-        a.origin?.value === "*" &&
-        a.children.some(
-          (u) =>
-            u.className === "ActionUpdate" &&
-            "stateName" in u &&
-            u.stateName?.value === "$Speak",
-        ),
-    );
-    if (!speakAction) {
+    // Replace rules from earlier generations — only the first matching rule
+    // fires, so a leftover "*" rule would shadow the new ones.
+    const generatedOrigins = new Set([
+      "*",
+      "grid",
+      "display",
+      "clear",
+      "suggestions",
+    ]);
+    for (const rule of [...Globals.actions.children]) {
+      if (
+        rule.className === "Action" &&
+        generatedOrigins.has(rule.origin?.value)
+      )
+        rule.remove();
+    }
+
+    const rules = [
+      // items tagged with a "next" category also switch the board there,
+      // saving the user a navigation step ($category drives the Radio
+      // filter, $tab the TabControl — whichever the layout uses)
+      {
+        origin: "grid",
+        condition: "#next",
+        updates: [
+          ["$Speak", "#label"],
+          ["$Display", "add_word(#label)"],
+          ["$category", "#next"],
+          ["$tab", "#next"],
+        ],
+      },
+      {
+        origin: "grid",
+        condition: "",
+        updates: [
+          ["$Speak", "#label"],
+          ["$Display", "add_word(#label)"],
+        ],
+      },
+      { origin: "display", condition: "$Display", updates: [["$Speak", "$Display"]] },
+      { origin: "clear", condition: "", updates: [["$Display", "''"]] },
+      // suggestions are complete utterances: speak and show as-is
+      {
+        origin: "suggestions",
+        condition: "",
+        updates: [
+          ["$Speak", "#label"],
+          ["$Display", "#label"],
+        ],
+      },
+    ];
+    for (const rule of rules) {
       TreeBase.fromObject(
         {
           className: "Action",
-          props: { origin: "*" },
+          props: { origin: rule.origin },
           children: [
-            { className: "ActionCondition", props: { Condition: "" }, children: [] },
-            { className: "ActionUpdate", props: { stateName: "$Speak", newValue: "#label" }, children: [] },
-            { className: "ActionUpdate", props: { stateName: "$Display", newValue: "#label" }, children: [] },
+            {
+              className: "ActionCondition",
+              props: { Condition: rule.condition },
+              children: [],
+            },
+            ...rule.updates.map(([stateName, newValue]) => ({
+              className: "ActionUpdate",
+              props: { stateName, newValue },
+              children: [],
+            })),
           ],
         },
         Globals.actions,
       );
-      db.write("actions", Globals.actions.toObject({ omittedProps: [] }));
-    } else if (
-      !speakAction.children.some(
-        (u) =>
-          u.className === "ActionUpdate" &&
-          "stateName" in u &&
-          u.stateName?.value === "$Display",
-      )
-    ) {
-      // Upgrade a speak-only rule from an earlier generation to also fill the Display
-      TreeBase.fromObject(
-        { className: "ActionUpdate", props: { stateName: "$Display", newValue: "#label" }, children: [] },
-        speakAction,
+    }
+    db.write("actions", Globals.actions.toObject({ omittedProps: [] }));
+  }
+
+  /** Derive auto-switch hints from example sentences.
+   *
+   * Asking a model to tag "which category follows this word" directly
+   * produces relatedness guesses (sunny → other weather adjectives).
+   * Writing sentences is a task models do reliably, so instead: get
+   * example sentences built only from the board's words, then derive each
+   * word's hint mechanically — majority vote over the category of the word
+   * that actually follows it. Sentence-final words naturally get no hint.
+   *
+   * Mutates rows in place; returns how many hints were applied.
+   * @param {Row[]} rows
+   * @param {string} key
+   * @returns {Promise<number>}
+   */
+  async _fetchNextHints(rows, key) {
+    try {
+      const words = rows.map((r) => `"${r.label}" (${r.category})`).join(", ");
+      const prompt =
+        `These words are on an AAC communication board: ${words}\n\n` +
+        `Write about 15 short, natural sentences someone would actually say out loud, ` +
+        `each built ONLY from these exact words, in speaking order. ` +
+        `Cover as many of the words as you can across the sentences.\n` +
+        `Return JSON: {"sentences": [["I like", "sunny", "days"], ...]} — ` +
+        `each sentence is an array whose elements are words from the list, copied exactly.`;
+
+      const response = await fetch(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+          }),
+        },
       );
-      db.write("actions", Globals.actions.toObject({ omittedProps: [] }));
+      if (!response.ok) return 0;
+      const data = await response.json();
+      const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+      const sentences = parsed.sentences;
+      if (!Array.isArray(sentences)) return 0;
+
+      // Majority vote: for each word, which category actually follows it?
+      const byLabel = new Map(
+        rows.map((r) => [String(r.label).trim().toLowerCase(), r]),
+      );
+      /** @type {Map<string, Map<string, number>>} */
+      const votes = new Map();
+      for (const sentence of sentences) {
+        if (!Array.isArray(sentence)) continue;
+        for (let i = 0; i + 1 < sentence.length; i++) {
+          const a = byLabel.get(String(sentence[i]).trim().toLowerCase());
+          const b = byLabel.get(String(sentence[i + 1]).trim().toLowerCase());
+          if (!a || !b || !b.category) continue;
+          let v = votes.get(a.label);
+          if (!v) votes.set(a.label, (v = new Map()));
+          v.set(b.category, (v.get(b.category) || 0) + 1);
+        }
+      }
+      let count = 0;
+      for (const row of rows) {
+        const v = votes.get(row.label);
+        if (!v) continue;
+        const best = [...v.entries()].sort((x, y) => y[1] - x[1])[0];
+        if (best) {
+          row.next = best[0];
+          count++;
+        }
+      }
+      return count;
+    } catch {
+      return 0;
     }
   }
 
   async _generateWithAI() {
-    const key = (import.meta.env.VITE_GROQ_API_KEY || "").trim();
-    if (!key || key === "your_groq_api_key_here") {
-      this._aiError = "No API key found. Add VITE_GROQ_API_KEY to your .env file and rebuild.";
+    const key = getGroqKey();
+    if (!key) {
+      this._aiError = "No API key found. Paste your Groq API key in the field below.";
       this._aiStatus = "error";
       Globals.state.update();
       return;
@@ -240,12 +408,14 @@ export class Content extends DesignerPanel {
         `The user said: "${this._aiDescription.trim()}"\n\n` +
         `Generate vocabulary items for this board. ` +
         `Unless the user specified a different number, generate about 20 items. ` +
-        `Return a JSON object shaped like {"layout": "...", "items": [...]} where each item has a "label" field (1–3 words shown on the button) and a "category" field grouping related items. ` +
+        `Return a JSON object shaped like {"layout": "...", "items": [{"label": "...", "category": "..."}, ...]}. ` +
+        `"label" is the 1–3 words shown on the button; "category" groups related items. ` +
         `Set "layout" based on board size — every extra press costs an AAC user real effort, so hide vocabulary behind navigation only when a flat grid would get crowded: ` +
         `"simple" — one flat grid with no categories; use when there are about 16 items or fewer so all vocabulary is visible and speakable in one press. ` +
         `"categories" — a row of category filter buttons above one grid; prefer this for larger boards whose items group naturally (e.g. People, Phrases, Places, Reactions — even a single subject usually splits this way). ` +
         `"tabs" — categories shown as separate tab pages; use only for big boards (30+ items) with clearly distinct groups. ` +
         `When layout is "tabs" or "categories", give every item a category and use 2–8 short category names. ` +
+        `Choose the words so they chain into natural sentences (starters, describing words, things, time words). ` +
         `Make vocabulary functional and appropriate for AAC users.`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -301,11 +471,25 @@ export class Content extends DesignerPanel {
         for (const row of rows) if (!row.category) row.category = "More";
       }
 
+      // Auto-switch hints come only from the sentence-derivation pass —
+      // drop any inline guesses the model may have added.
+      for (const row of rows) delete row.next;
+      const categoryCount = new Set(
+        rows.map((r) => r.category).filter(Boolean),
+      ).size;
+      let nextHints = 0;
+      if (categoryCount >= 2) {
+        nextHints = await this._fetchNextHints(rows, key);
+      }
+      console.log("AI board generation:", { layout: parsed.layout, nextHints, rows });
+      this._aiNextNote =
+        nextHints > 0 ? `, auto-switching after ${nextHints} words` : "";
+
       Globals.data.setContent(rows);
       await db.write("content", rows);
 
       this._aiLayoutNote = await this._buildLayout(rows, style);
-      this._setupSpeech();
+      this._setupActions();
 
       this._aiStatus = "success";
       Globals.state.update();
@@ -436,6 +620,29 @@ export class Content extends DesignerPanel {
               ${this._aiStatus === "loading" ? "Generating…" : "✨ Generate"}
             </button>
 
+            <details class="ai-key" ?open=${!getGroqKey()}>
+              <summary>
+                API key ${getGroqKey() ? "✓" : "— required"}
+              </summary>
+              <p class="ai-key-note">
+                Paste a Groq API key from
+                <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com</a>.
+                It is stored only on this device and is never included when you
+                save or share a design.
+              </p>
+              <input
+                type="password"
+                class="ai-input"
+                placeholder="gsk_…"
+                autocomplete="off"
+                .value=${getGroqKey()}
+                @change=${(/** @type {Event} */ e) => {
+                  setGroqKey(/** @type {HTMLInputElement} */ (e.target).value);
+                  Globals.state.update();
+                }}
+              />
+            </details>
+
             ${this._aiStatus === "error"
               ? html`<p class="ai-error">⚠ ${this._aiError}</p>`
               : html``}
@@ -443,7 +650,7 @@ export class Content extends DesignerPanel {
               ? html`<p class="ai-success">
                   ✓ Generated ${Globals.data.length} rows${this._aiLayoutNote
                     ? ` ${this._aiLayoutNote}`
-                    : ""}. Check the row count above.
+                    : ""}${this._aiNextNote}. Check the row count above.
                 </p>`
               : html``}
           </div>

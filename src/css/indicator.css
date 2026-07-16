@@ -1,0 +1,53 @@
+/* Status indicator bar (ported from the CADL fork, without Font Awesome) */
+
+#indicator-bar {
+  position: absolute;
+  top: 2px;
+  right: 16px;
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+#indicator-bar > div {
+  position: relative;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 50%;
+  background: transparent;
+}
+
+/* ASR mic: green when on, pulsing amber while starting/reconnecting */
+.asr-indicator[active] {
+  background: hsl(140 60% 45%);
+}
+.asr-indicator[starting] {
+  background: hsl(40 90% 55%);
+  animation: indicator-pulse 1.2s ease-in-out infinite;
+}
+
+/* Location tracking */
+.loc-indicator[active] {
+  background: hsl(210 80% 55%);
+}
+
+/* Server connection */
+.socket-indicator[connected] {
+  background: hsl(140 60% 45%);
+}
+.socket-indicator[reconnecting] {
+  background: hsl(40 90% 55%);
+  animation: indicator-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes indicator-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}

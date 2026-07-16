@@ -6,8 +6,6 @@ import { styleString } from "./style";
 import { formatSlottedString } from "./slots";
 import Globals from "app/globals";
 import db from "app/db";
-import { speakSync } from "./speech";
-import { speechSuggestions } from "./speechSuggestions";
 import "css/grid.css";
 
 /**
@@ -186,15 +184,6 @@ class Grid extends TreeBase {
         ComponentType: this.className,
       }}
       ?disabled=${!item.label && !item.symbol}
-      @pointerup=${function (/** @type {PointerEvent} */ e) {
-        if (!e.isPrimary || Globals.state?.get("editing")) return;
-        const label = /** @type {HTMLElement} */ (e.currentTarget).dataset.label;
-        if (label) {
-          speakSync(label);
-          // archive this exchange and listen fresh for the next sentence
-          speechSuggestions.resetExchange(label);
-        }
-      }}
       @dragstart=${function (/** @type {DragEvent} */ e) {
         if (!Globals.state?.get("editing")) {
           e.preventDefault();

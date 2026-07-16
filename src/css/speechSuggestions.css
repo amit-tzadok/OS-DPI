@@ -49,6 +49,14 @@ body:not(.designing):has(.ss-bar--active) #suggestions {
     right 0.2s ease;
 }
 
+/* ── Bar: solo edit button for boards with native integration ──
+   Anchored bottom-LEFT so it can't cover board controls that
+   conventionally live in the bottom-right (like DEAN's ASR On/Off). */
+.ss-bar--solo {
+  right: auto;
+  left: 0.75rem;
+}
+
 /* ── Bar: expanded (full-width strip at bottom) ── */
 .ss-bar--active {
   position: static;
@@ -371,13 +379,6 @@ body:not(.designing):has(.ss-bar--active) #suggestions {
 }
 
 /* Dark mode */
-@media (prefers-color-scheme: dark) {
-  .ss-chip {
-    background: hsl(var(--hue) 28% 16%);
-    color: hsl(var(--hue) 60% 78%);
-  }
-}
-
 html[color-scheme="dark"] .ss-chip {
   background: hsl(var(--hue) 28% 16%);
   color: hsl(var(--hue) 60% 78%);
