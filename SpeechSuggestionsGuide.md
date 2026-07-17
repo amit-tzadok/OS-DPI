@@ -61,6 +61,12 @@ states:
 - Wire your own on-board button to start/stop listening with the eval
   function `toggle_speech_suggestions()` — use it as the new value of
   any state update, e.g. `$ignored` ← `toggle_speech_suggestions()`.
+- **Steer the AI from your board's keyboard** by writing typed text to
+  `$SuggestionHint` (e.g. letter keys update it with
+  `add_letter(#label)`, backspace with `replace_last_letter('')`).
+  While listening, suggestions regenerate built around whatever the
+  user has typed, exactly like the floating bar's "type to steer"
+  input. The hint is cleared automatically when a response is spoken.
 - `$asr_status` is set to `"on"`/`"off"` for boards that include an
   **Indicator** component.
 

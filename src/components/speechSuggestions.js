@@ -284,6 +284,9 @@ export class SpeechSuggestions {
     this._aiStatus = "";
     this._lastSignature = "";
     this._publishSuggestionStates([]);
+    if (Globals.state?.get("$SuggestionHint")) {
+      Globals.state.update({ $SuggestionHint: "" });
+    }
     // remove any live suggestions from the board, keeping the vocabulary
     if (Globals.data?.contentRows.some((row) => row.suggestion)) {
       const baseRows = Globals.data.contentRows.filter(
@@ -713,6 +716,10 @@ export class SpeechSuggestions {
     this._userHint = "";
     this._resumePrefix = "";
     this._lastSignature = "";
+    // the steering text belongs to the finished exchange
+    if (Globals.state?.get("$SuggestionHint")) {
+      Globals.state.update({ $SuggestionHint: "" });
+    }
     if (this._listening && this._recognition) {
       try {
         // abort drops the accumulated results; onend auto-restarts
@@ -811,6 +818,17 @@ export class SpeechSuggestions {
       this._suggestions.includes(spoken)
     ) {
       this.resetExchange(spoken, "board");
+    }
+
+    // A board can steer the AI from its own keyboard by writing typed text
+    // into $SuggestionHint (DEAN's QWERTY tab does): mirror it into the
+    // hint the same way the floating bar's steering input does.
+    if (this._listening && Globals.state?.hasBeenUpdated("$SuggestionHint")) {
+      const hint = String(Globals.state.get("$SuggestionHint") || "");
+      if (hint !== this._userHint) {
+        this._userHint = hint;
+        this._scheduleSuggest(500);
+      }
     }
 
     const editIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
