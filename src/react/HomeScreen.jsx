@@ -100,6 +100,20 @@ export function HomeScreen() {
     window.location.hash = name;
   }
 
+  /** Remove a board (and its logs) from this device
+   * @param {string} name @param {boolean} isSaved */
+  async function handleDelete(name, isSaved) {
+    const warning = isSaved
+      ? `Delete "${name}" from this device?\n\nYou have downloaded a backup, so you can re-import it later.`
+      : `Delete "${name}" from this device?\n\nIt has never been backed up — the board and its logs will be gone permanently.`;
+    if (!window.confirm(warning)) return;
+    await db.unload(name);
+    await db.clearLog(name);
+    const [names, saved] = await Promise.all([db.names(), db.saved()]);
+    setBoards(names);
+    setSavedBoards(saved);
+  }
+
   const hasBoards = boards !== null && boards.length > 0;
 
   return (
@@ -180,26 +194,36 @@ export function HomeScreen() {
                   const initials = name.slice(0, 2).toUpperCase();
                   const isSaved = savedBoards.includes(name);
                   return (
-                    <button
-                      key={name}
-                      className="hs-card"
-                      role="listitem"
-                      onClick={() => handleOpen(name)}
-                      aria-label={`Open board: ${name}`}
-                    >
-                      <div className="hs-card-avatar" aria-hidden="true">
-                        {initials}
-                      </div>
-                      <span className="hs-card-name">{name}</span>
-                      {!isSaved && (
-                        <span
-                          className="hs-card-badge"
-                          title="Stored on this device but not exported — use File → Download Backup in the editor to keep an .osdpi copy"
-                        >
-                          No backup
-                        </span>
-                      )}
-                    </button>
+                    <div key={name} className="hs-card-wrap" role="listitem">
+                      <button
+                        className="hs-card"
+                        onClick={() => handleOpen(name)}
+                        aria-label={`Open board: ${name}`}
+                      >
+                        <div className="hs-card-avatar" aria-hidden="true">
+                          {initials}
+                        </div>
+                        <span className="hs-card-name">{name}</span>
+                        {!isSaved && (
+                          <span
+                            className="hs-card-badge"
+                            title="Stored on this device but not exported — use File → Download Backup in the editor to keep an .osdpi copy"
+                          >
+                            No backup
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        className="hs-card-delete"
+                        title={`Delete ${name}`}
+                        aria-label={`Delete board: ${name}`}
+                        onClick={() => handleDelete(name, isSaved)}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   );
                 })}
               </div>

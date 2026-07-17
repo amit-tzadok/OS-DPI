@@ -250,11 +250,12 @@ export class DB {
    *
    * @returns {Promise<void>}
    */
-  async clearLog() {
+  /** @param {string} [name] defaults to the current design */
+  async clearLog(name = this.designName) {
     const db = await this.dbPromise;
     const tx = db.transaction("logstore", "readwrite");
     const index = tx.store.index("by-name");
-    for await (const cursor of index.iterate(this.designName)) {
+    for await (const cursor of index.iterate(name)) {
       cursor.delete();
     }
     await tx.done;
