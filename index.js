@@ -25667,7 +25667,7 @@ class DesignListDialog {
       const content = html`<div class="board-gallery-dialog">
         <div class="board-gallery-header">
           <h1>Your Boards</h1>
-          <a class="board-gallery-home" href="/" title="Return to home page">← Home</a>
+          <a class="board-gallery-home" href="./" title="Return to home page">← Home</a>
         </div>
         ${names.length === 0
           ? html`<p class="board-gallery-empty">
@@ -25832,7 +25832,7 @@ class ToolBar extends TreeBase {
       <div class="toolbar brand">
         <ul>
           <li class="toolbar-breadcrumb">
-            <a class="toolbar-home-link" href="/">Home</a>
+            <a class="toolbar-home-link" href="./">Home</a>
             <span class="toolbar-sep">/</span>
             ${hinted(
               html`<input
