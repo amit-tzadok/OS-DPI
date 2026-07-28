@@ -3964,14 +3964,6 @@ kbd {
   opacity: 0.45;
   cursor: default;
 }
-#update-available-button {
-  display: none;
-}
-
-.update-available #update-available-button {
-  display: inline;
-  background-color: var(--primary-bg);
-}
 /* ── Guided tour overlay ── */
 .tutorial-overlay {
   position: fixed;
@@ -4465,6 +4457,28 @@ html {
     0 22.3px 17.9px hsl(var(--surface-shadow) / calc(var(--shadow-strength) + 0.02)),
     0 41.8px 33.4px hsl(var(--surface-shadow) / calc(var(--shadow-strength) + 0.03)),
     0 100px 80px    hsl(var(--surface-shadow) / var(--shadow-strength));
+}
+#app-update {
+  position: fixed;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+#update-available-button {
+  display: none;
+}
+
+.update-available #update-available-button {
+  display: inline-flex;
+  pointer-events: auto;
+  align-items: center;
+  padding: 0.5rem 0.9rem;
+  border-radius: 9999px;
+  background-color: var(--primary-bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  font-weight: 600;
 }
 /* ── Speech suggestions container ── */
 #suggestions {
