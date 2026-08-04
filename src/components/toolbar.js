@@ -19,7 +19,6 @@ import { SaveLog, SaveLogXLSX, ClearLog } from "./logger";
 import { friendlyName, wikiName } from "./names";
 import { showToast } from "./errors";
 
-import { workerUpdateButton } from "components/serviceWorker";
 import "components/monkeyTest"; // keeps the ctrl+m monkey test on localhost
 import { startTutorial } from "components/tutorial";
 
@@ -657,7 +656,7 @@ class DesignListDialog {
       const content = html`<div class="board-gallery-dialog">
         <div class="board-gallery-header">
           <h1>Your Boards</h1>
-          <a class="board-gallery-home" href="/" title="Return to home page">← Home</a>
+          <a class="board-gallery-home" href="./" title="Return to home page">← Home</a>
         </div>
         ${names.length === 0
           ? html`<p class="board-gallery-empty">
@@ -822,7 +821,7 @@ export class ToolBar extends TreeBase {
       <div class="toolbar brand">
         <ul>
           <li class="toolbar-breadcrumb">
-            <a class="toolbar-home-link" href="/">Home</a>
+            <a class="toolbar-home-link" href="./">Home</a>
             <span class="toolbar-sep">/</span>
             ${hinted(
               html`<input
@@ -863,7 +862,6 @@ export class ToolBar extends TreeBase {
               hinted(this.helpMenu.render(), "H")
             }
           </li>
-          <li>${workerUpdateButton()}</li>
           <li>
             <button
               class="toolbar-kbd-help"

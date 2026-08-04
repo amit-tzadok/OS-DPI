@@ -1,4 +1,5 @@
 import "@ungap/custom-elements";
+import { render } from "uhtml";
 import { Messages } from "./components/errors";
 import { Data } from "./data";
 import { State } from "./state";
@@ -18,7 +19,7 @@ import { Actions } from "./components/actions";
 import { callAfterRender, safeRender, postRender } from "./render";
 import { Designer } from "components/designer";
 import { Content } from "components/content";
-import { workerCheckForUpdate } from "components/serviceWorker";
+import { workerCheckForUpdate, workerUpdateButton } from "components/serviceWorker";
 import { accessed } from "./eval";
 import { speechSuggestions } from "components/speechSuggestions";
 import { attachTapRouter } from "components/tapRouter";
@@ -160,6 +161,8 @@ export async function start() {
     safeRender("cues", Globals.cues);
     safeRender("UI", Globals.layout.children[0]);
     safeRender("suggestions", speechSuggestions);
+    const updateDiv = document.getElementById("app-update");
+    if (updateDiv) render(updateDiv, workerUpdateButton());
     if (editing) {
       safeRender("toolbar", toolbar);
       safeRender("tabs", Globals.designer);

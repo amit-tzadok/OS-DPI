@@ -1,8 +1,22 @@
+#app-update {
+  position: fixed;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 9999;
+  pointer-events: none;
+}
+
 #update-available-button {
   display: none;
 }
 
 .update-available #update-available-button {
-  display: inline;
+  display: inline-flex;
+  pointer-events: auto;
+  align-items: center;
+  padding: 0.5rem 0.9rem;
+  border-radius: 9999px;
   background-color: var(--primary-bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  font-weight: 600;
 }
