@@ -237,6 +237,12 @@ html[color-scheme="dark"] .hs-brand {
   color: var(--text2);
 }
 
+.hs-choice-note {
+  font-size: 0.7rem;
+  color: var(--text2);
+  opacity: 0.7;
+}
+
 .hs-error {
   font-size: 0.8rem;
   color: hsl(4 65% 45%);

@@ -631,8 +631,19 @@ export class Content extends DesignerPanel {
                 API key ${getGroqKey() ? "✓" : "— required"}
               </summary>
               <p class="ai-key-note">
-                Paste a Groq API key from
-                <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com</a>.
+                This feature needs a free API key from Groq, the AI provider
+                that powers it — it takes about a minute to set up:
+              </p>
+              <ol class="ai-key-steps">
+                <li>
+                  Go to
+                  <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>
+                  and sign up (no cost).
+                </li>
+                <li>Click <strong>Create API Key</strong>, then copy it.</li>
+                <li>Paste it into the field below.</li>
+              </ol>
+              <p class="ai-key-note">
                 It is stored only on this device and is never included when you
                 save or share a design.
               </p>
