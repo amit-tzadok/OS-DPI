@@ -107,8 +107,12 @@ export class Content extends DesignerPanel {
     }
     if (categories.size < 2 || categories.size > 8) style = "simple";
 
-    // Message window plus a Clear button: words accumulate in the Display,
-    // pressing it speaks the sentence, Clear starts over.
+    // Message window plus Listen and Clear buttons: words accumulate in the
+    // Display, pressing it speaks the sentence, Clear starts over. Listen
+    // toggles live speech suggestions — the board always has its own
+    // "suggestions" grid (below), which makes speechSuggestions.js treat it
+    // as natively integrated and hide the generic floating mic button, so
+    // the board needs to provide its own way to turn listening on.
     const display = {
       className: "Stack",
       props: { direction: "row", background: "", scale: "1" },
@@ -122,6 +126,11 @@ export class Content extends DesignerPanel {
             fontSize: "2",
             scale: "5",
           },
+          children: [],
+        },
+        {
+          className: "Button",
+          props: { label: "🎤 Listen", name: "listen", background: "", scale: "1" },
           children: [],
         },
         {
@@ -176,9 +185,13 @@ export class Content extends DesignerPanel {
       children = [display, suggestionStrip, tabs];
       note = `in ${categories.size} tab pages`;
     } else if (style === "categories") {
+      // Radio buttons are capped at 45% width (radio.css), so only 2 fit per
+      // row — give it enough scale to fit every row, or extra rows get
+      // clipped and painted over by the grid below.
+      const radioRows = Math.ceil(categories.size / 2);
       const radio = {
         className: "Radio",
-        props: { stateName: "$category", label: "", scale: "1" },
+        props: { stateName: "$category", label: "", scale: String(radioRows) },
         children: [...categories.keys()].map((cat) => ({
           className: "Option",
           props: { name: cat, value: cat },
@@ -249,6 +262,7 @@ export class Content extends DesignerPanel {
       "display",
       "clear",
       "suggestions",
+      "listen",
     ]);
     for (const rule of [...Globals.actions.children]) {
       if (
@@ -292,6 +306,12 @@ export class Content extends DesignerPanel {
       },
       { origin: "display", condition: "$Display", updates: [["$Speak", "$Display"]] },
       { origin: "clear", condition: "", updates: [["$Display", "''"]] },
+      // toggles speechSuggestions.js's listening state on/off
+      {
+        origin: "listen",
+        condition: "",
+        updates: [["$__asrEngine", "toggle_speech_suggestions()"]],
+      },
       // suggestions are complete utterances: speak and show as-is
       {
         origin: "suggestions",
