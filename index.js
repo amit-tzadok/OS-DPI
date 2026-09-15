@@ -16617,6 +16617,23 @@ class Content extends DesignerPanel {
   _aiLayoutNote = "";
   /** Note about auto-switch hints in the last generation */
   _aiNextNote = "";
+  /** Transient confirmation shown after the Groq key is saved or removed
+   * @type {"" | "saved" | "cleared"} */
+  _keyNotice = "";
+  /** @type {number | null} */
+  _keyNoticeTimer = null;
+
+  /** @param {"saved" | "cleared"} notice */
+  _showKeyNotice(notice) {
+    this._keyNotice = notice;
+    if (this._keyNoticeTimer !== null) clearTimeout(this._keyNoticeTimer);
+    this._keyNoticeTimer = window.setTimeout(() => {
+      this._keyNotice = "";
+      this._keyNoticeTimer = null;
+      Globals.state.update();
+    }, 3000);
+    Globals.state.update();
+  }
 
   /** After AI generation, rebuild the board to fit the generated rows.
    * Uses a Display message strip plus, when the vocabulary is organised
@@ -16790,6 +16807,16 @@ class Content extends DesignerPanel {
     }
 
     const rules = [
+      // ready-made phrases are complete utterances: speak and show as-is,
+      // same as live suggestions, instead of accumulating word-by-word
+      {
+        origin: "grid",
+        condition: "#category='Phrases'",
+        updates: [
+          ["$Speak", "#label"],
+          ["$Display", "#label"],
+        ],
+      },
       // items tagged with a "next" category also switch the board there,
       // saving the user a navigation step ($category drives the Radio
       // filter, $tab the TabControl — whichever the layout uses)
@@ -16967,7 +16994,11 @@ class Content extends DesignerPanel {
         `"tabs" — categories shown as separate tab pages; use only for big boards (30+ items) with clearly distinct groups. ` +
         `When layout is "tabs" or "categories", give every item a category and use 2–8 short category names. ` +
         `Choose the words so they chain into natural sentences (starters, describing words, things, time words). ` +
-        `Make vocabulary functional and appropriate for AAC users.`;
+        `Make vocabulary functional and appropriate for AAC users.\n\n` +
+        `Also include 4–8 extra items with category exactly "Phrases" — each one a complete, ` +
+        `ready-to-speak short sentence about the topic (up to about 6 words), e.g. "I love the Bills" ` +
+        `or "Did you watch the game?". These are spoken whole when pressed, not built word-by-word like ` +
+        `the other items, so users who don't want to build a sentence word-by-word can just tap one.`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -17013,10 +17044,22 @@ class Content extends DesignerPanel {
         });
       if (!rows.length) throw new Error("AI returned no usable items");
 
+      // Normalize casing so the "speak-whole-sentence" action rule (and the
+      // category filters) can match this category name exactly.
+      for (const row of rows) {
+        if (String(row.category || "").trim().toLowerCase() === "phrases") {
+          row.category = "Phrases";
+        }
+      }
+      const hasPhrases = rows.some((r) => r.category === "Phrases");
+
       /** @type {"tabs" | "categories" | "simple"} */
-      const style = ["tabs", "categories"].includes(parsed.layout)
+      let style = ["tabs", "categories"].includes(parsed.layout)
         ? parsed.layout
         : "simple";
+      // Ready-made phrases need their own filterable section even when the
+      // rest of the vocabulary is flat enough for a simple grid.
+      if (hasPhrases && style === "simple") style = "categories";
       if (style !== "simple") {
         // Every row needs a category or it would be hidden by the filters
         for (const row of rows) if (!row.category) row.category = "More";
@@ -17030,11 +17073,17 @@ class Content extends DesignerPanel {
       ).size;
       let nextHints = 0;
       if (categoryCount >= 2) {
-        nextHints = await this._fetchNextHints(rows, key);
+        // Phrases are already complete sentences — they don't need (or
+        // benefit from) an auto-switch hint of their own.
+        nextHints = await this._fetchNextHints(
+          rows.filter((r) => r.category !== "Phrases"),
+          key,
+        );
       }
       console.log("AI board generation:", { layout: parsed.layout, nextHints, rows });
       this._aiNextNote =
-        nextHints > 0 ? `, auto-switching after ${nextHints} words` : "";
+        (nextHints > 0 ? `, auto-switching after ${nextHints} words` : "") +
+        (hasPhrases ? ", plus a Phrases section of ready-made sentences" : "");
 
       Globals.data.setContent(rows);
       await db.write("content", rows);
@@ -17202,10 +17251,29 @@ class Content extends DesignerPanel {
                 autocomplete="off"
                 .value=${getGroqKey()}
                 @change=${(/** @type {Event} */ e) => {
-                  setGroqKey(/** @type {HTMLInputElement} */ (e.target).value);
-                  Globals.state.update();
+                  const value = /** @type {HTMLInputElement} */ (e.target).value;
+                  setGroqKey(value);
+                  this._showKeyNotice(value.trim() ? "saved" : "cleared");
                 }}
               />
+              <div class="ai-key-actions">
+                <button
+                  type="button"
+                  class="ai-key-remove-btn"
+                  ?disabled=${!getGroqKey()}
+                  @click=${() => {
+                    setGroqKey("");
+                    this._showKeyNotice("cleared");
+                  }}
+                >
+                  Remove key
+                </button>
+                ${this._keyNotice === "saved"
+                  ? html`<span class="ai-key-confirm">✓ Key saved</span>`
+                  : this._keyNotice === "cleared"
+                    ? html`<span class="ai-key-confirm">Key removed</span>`
+                    : html``}
+              </div>
             </details>
 
             ${this._aiStatus === "error"
