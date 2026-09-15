@@ -873,10 +873,18 @@ export class SpeechSuggestions {
         : html`<div class="ss-notice" role="alert">${this._userMessage}</div>`
       : html``;
 
-    // A board with native integration drives listening and shows suggestions
-    // through its own buttons; keep the way back to the editor, and — since
-    // the pulsing mic of the full bar is hidden — a plainly visible
-    // "Listening" pill so conversation partners know the mic is live.
+    const micIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="9" y="2" width="6" height="13" rx="3"/>
+      <path d="M5 10a7 7 0 0 0 14 0"/>
+      <line x1="12" y1="20" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>`;
+
+    // A board with native integration shows suggestions through its own
+    // grid, but still needs a way to start/stop listening — a round icon
+    // button matching the "back to editor" one, instead of a full-width
+    // bar with steering input and chip list that would duplicate the
+    // board's own suggestion buttons.
     if (this._hasNativeIntegration) {
       return html`
         <div class="ss-bar ss-bar--solo">
@@ -888,6 +896,15 @@ export class SpeechSuggestions {
           >
             ${editIcon}
           </button>
+          <button
+            class=${this._listening ? "ss-mic ss-mic--on" : "ss-mic"}
+            title=${this._listening ? "Stop listening" : "Suggest responses from speech"}
+            aria-label=${this._listening ? "Stop listening" : "Start listening for suggestions"}
+            aria-pressed=${this._listening}
+            @click=${() => this.toggle()}
+          >
+            ${micIcon}
+          </button>
           ${this._listening
             ? html`<span class="ss-listening-pill" role="status">
                 <span class="ss-listening-dot"></span> Listening
@@ -897,13 +914,6 @@ export class SpeechSuggestions {
         </div>
       `;
     }
-
-    const micIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <rect x="9" y="2" width="6" height="13" rx="3"/>
-      <path d="M5 10a7 7 0 0 0 14 0"/>
-      <line x1="12" y1="20" x2="12" y2="23"/>
-      <line x1="8" y1="23" x2="16" y2="23"/>
-    </svg>`;
 
     const resetIcon = html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <polyline points="1 4 1 10 7 10"/>
