@@ -26433,7 +26433,14 @@ class SpeechSuggestions {
               },
             ],
             response_format: { type: "json_object" },
-            max_tokens: 300,
+            // openai/gpt-oss-120b is a reasoning model: with no reasoning_effort
+            // set, it burns hundreds of hidden "thinking" tokens before writing
+            // the actual JSON, which used to exhaust the old 300-token cap and
+            // make Groq reject the request outright (json_validate_failed on
+            // empty failed_generation) — every live suggestion failed. Low
+            // effort is plenty for a 6-phrase reply and keeps latency down.
+            reasoning_effort: "low",
+            max_tokens: 600,
           }),
         },
       );
