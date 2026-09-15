@@ -16881,7 +16881,7 @@ class Content extends DesignerPanel {
             "Authorization": `Bearer ${key}`,
           },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" },
           }),
@@ -16976,7 +16976,7 @@ class Content extends DesignerPanel {
           "Authorization": `Bearer ${key}`,
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "openai/gpt-oss-120b",
           messages: [{ role: "user", content: prompt }],
           response_format: { type: "json_object" },
         }),
@@ -17179,8 +17179,19 @@ class Content extends DesignerPanel {
                 API key ${getGroqKey() ? "✓" : "— required"}
               </summary>
               <p class="ai-key-note">
-                Paste a Groq API key from
-                <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com</a>.
+                This feature needs a free API key from Groq, the AI provider
+                that powers it — it takes about a minute to set up:
+              </p>
+              <ol class="ai-key-steps">
+                <li>
+                  Go to
+                  <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>
+                  and sign up (no cost).
+                </li>
+                <li>Click <strong>Create API Key</strong>, then copy it.</li>
+                <li>Paste it into the field below.</li>
+              </ol>
+              <p class="ai-key-note">
                 It is stored only on this device and is never included when you
                 save or share a design.
               </p>
@@ -26063,16 +26074,29 @@ class SpeechSuggestions {
   /** Missing-key notice already shown this listening session */
   _keyNoticeShown = false;
 
-  /** @param {string} message */
-  _notify(message) {
+  /** Optional click handler for the current notice (e.g. jump to the AI
+   * key field instead of just naming where it lives)
+   * @type {(() => void) | null} */
+  _userMessageAction = null;
+
+  /** @param {string} message @param {(() => void) | null} [action] */
+  _notify(message, action = null) {
     this._userMessage = message;
+    this._userMessageAction = action;
     if (this._noticeTimer !== null) clearTimeout(this._noticeTimer);
     this._noticeTimer = window.setTimeout(() => {
       this._userMessage = "";
+      this._userMessageAction = null;
       this._noticeTimer = null;
       Globals.state?.update();
     }, 8000);
     Globals.state?.update();
+  }
+
+  /** Switch into the editor with the AI key field open, for notices that
+   * point the user at the designer's AI panel */
+  _openAIKeyPanel() {
+    Globals.state?.update({ editing: true, designerTab: "Content" });
   }
 
   toggle() {
@@ -26230,7 +26254,8 @@ class SpeechSuggestions {
       if (!this._keyNoticeShown) {
         this._keyNoticeShown = true;
         this._notify(
-          "AI suggestions need a Groq API key — add one in the designer's AI panel.",
+          "AI suggestions need a free Groq API key — tap to add one.",
+          () => this._openAIKeyPanel(),
         );
       }
       return;
@@ -26307,7 +26332,7 @@ class SpeechSuggestions {
             Authorization: `Bearer ${key}`,
           },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [
               {
                 role: "user",
@@ -26330,11 +26355,13 @@ class SpeechSuggestions {
         // with a mistyped key get 401s. Neither should read as a mystery.
         if (response.status === 429) {
           this._notify(
-            "AI suggestion rate limit reached — wait a minute and try again (or use your own Groq API key).",
+            "AI suggestion rate limit reached — wait a minute and try again (or tap to add your own free Groq API key).",
+            () => this._openAIKeyPanel(),
           );
         } else if (response.status === 401 || response.status === 403) {
           this._notify(
-            "The Groq API key was rejected — check it in the designer's AI panel.",
+            "The Groq API key was rejected — tap to check it.",
+            () => this._openAIKeyPanel(),
           );
         }
         throw new Error(`API error ${response.status}`);
@@ -26733,7 +26760,15 @@ class SpeechSuggestions {
     // Problems that would otherwise fail silently (no Chrome speech API,
     // mic blocked, insecure origin) surface here for either branch below.
     const notice = this._userMessage
-      ? html`<div class="ss-notice" role="alert">${this._userMessage}</div>`
+      ? this._userMessageAction
+        ? html`<button
+            class="ss-notice ss-notice--action"
+            role="alert"
+            @click=${this._userMessageAction}
+          >
+            ${this._userMessage}
+          </button>`
+        : html`<div class="ss-notice" role="alert">${this._userMessage}</div>`
       : html``;
 
     // A board with native integration drives listening and shows suggestions

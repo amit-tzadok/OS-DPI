@@ -2437,6 +2437,18 @@ html[color-scheme="dark"] .designer .buttons button[active] { background-color: 
   color: var(--text2);
 }
 
+.ai-key-steps {
+  margin: 0.3em 0;
+  padding-left: 1.2em;
+  font-size: 0.76rem;
+  color: var(--text2);
+  list-style-type: decimal;
+}
+
+.ai-key-steps li {
+  margin: 0.2em 0;
+}
+
 .ai-row {
   display: flex;
   gap: 0.6em;
@@ -4586,6 +4598,23 @@ html[color-scheme="dark"] .ss-notice {
   background: hsl(40 45% 18%);
   border-color: hsl(40 70% 45%);
   color: hsl(45 90% 85%);
+}
+
+.ss-notice--action {
+  font: inherit;
+  text-align: left;
+  pointer-events: auto;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.ss-notice--action:hover {
+  background: hsl(45 95% 85%);
+}
+
+html[color-scheme="dark"] .ss-notice--action:hover {
+  background: hsl(40 45% 24%);
 }
 
 /* ── Bar: expanded (full-width strip at bottom) ── */

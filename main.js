@@ -548,11 +548,13 @@ It has never been backed up — the board and its logs will be gone permanently.
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { className: "hs-choice", onClick: handleTemplate, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-choice-title", children: "🗣️ DEAN Conversation Board" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-choice-desc", children: "Start from the DEAN template — a ready-made conversation board with live AI response suggestions." })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-choice-desc", children: "Start from the DEAN template — a ready-made conversation board with live AI response suggestions." }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-choice-note", children: "Needs a free Groq API key" })
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { className: "hs-choice", onClick: handleAI, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-choice-title", children: "✨ Generate with AI" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-choice-desc", children: "Describe the board you want and let AI build the vocabulary and layout for you." })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-choice-desc", children: "Describe the board you want and let AI build the vocabulary and layout for you." }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-choice-note", children: "Needs a free Groq API key" })
         ] }),
         error && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "hs-error", role: "alert", children: error }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hs-divider", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "or" }) }),
