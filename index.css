@@ -4577,6 +4577,14 @@ body:not(.designing):has(.ss-bar--active) #suggestions {
     right 0.2s ease;
 }
 
+/* ── Bar: solo, on a board with its own ASR button (e.g. DEAN) ──
+   That control conventionally lives bottom-right too, so dock here
+   instead — sharing the corner would intercept taps meant for it. */
+.ss-bar--native-asr {
+  right: auto;
+  left: 0.75rem;
+}
+
 /* ── "Listening" pill: partner-visible indicator when the mic is live but
    the full bar is hidden (boards with native integration) ── */
 .ss-listening-pill {
