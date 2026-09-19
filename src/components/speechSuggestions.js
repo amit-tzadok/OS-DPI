@@ -897,16 +897,20 @@ export class SpeechSuggestions {
     </svg>`;
 
     // A board with native integration shows suggestions through its own
-    // grid, but still needs a way to start/stop listening — a round icon
-    // button matching the "back to editor" one, instead of a full-width
-    // bar with steering input and chip list that would duplicate the
-    // board's own suggestion buttons. Skip it if the board already has its
-    // own on-board control (DEAN's "ASR On/Off") — both dock bottom-right,
-    // so a second one would just cover the first.
+    // grid instead of a chip list, but a nonverbal speaker still needs a
+    // way to steer them — so keep the steering input, just not the
+    // transcript/chip rows the board's own grid already covers. Skip the
+    // mic icon if the board already has its own on-board control (DEAN's
+    // "ASR On/Off"): boards without one (AI-generated) dock this bar
+    // bottom-right; DEAN's own control lives there too, so a board that
+    // already has one gets docked bottom-left instead — sharing the corner
+    // doesn't just look duplicated, it actually intercepts taps meant for
+    // the board's own button underneath.
     if (this._hasNativeIntegration) {
-      const showMic = !this._hasOwnAsrButton;
+      const hasOwnAsr = this._hasOwnAsrButton;
+      const showMic = !hasOwnAsr;
       return html`
-        <div class="ss-bar ss-bar--solo">
+        <div class=${"ss-bar ss-bar--solo" + (hasOwnAsr ? " ss-bar--native-asr" : "")}>
           <button
             class="ss-edit"
             title="Back to editor"
@@ -930,6 +934,29 @@ export class SpeechSuggestions {
             ? html`<span class="ss-listening-pill" role="status">
                 <span class="ss-listening-dot"></span> Listening
               </span>`
+            : html``}
+          ${this._listening
+            ? html`<input
+                class="ss-steer"
+                type="text"
+                placeholder="Type to steer suggestions…"
+                aria-label="Type to steer suggestions"
+                autocomplete="off"
+                .value=${this._userHint}
+                @input=${(/** @type {InputEvent} */ e) => this._onHintInput(e)}
+                @keydown=${(/** @type {KeyboardEvent} */ e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    // explicit request: bypass the unchanged-input guard
+                    this._lastSignature = "";
+                    this._fetchSuggestions();
+                  } else if (e.key === "Escape") {
+                    this._userHint = "";
+                    /** @type {HTMLInputElement} */ (e.target).value = "";
+                    this._scheduleSuggest(0);
+                  }
+                }}
+              />`
             : html``}
           ${notice}
         </div>
