@@ -57,6 +57,32 @@ body:not(.designing):has(.ss-bar--active) #suggestions {
   left: 0.75rem;
 }
 
+/* Solo bar while listening: pad the pill so nothing touches its rim, and
+   give the steering input real room — it's how a nonverbal speaker
+   points the AI at what they want to say. */
+.ss-bar--solo:has(.ss-steer) {
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.35rem;
+  /* same as the one-row pill; keeps round corners if it wraps on a phone */
+  border-radius: 1.85rem;
+  max-width: calc(100vw - 1.5rem);
+}
+
+.ss-bar--solo:has(.ss-steer) .ss-listening-pill {
+  margin-left: 0;
+}
+
+.ss-bar.ss-bar--solo input.ss-steer {
+  flex: 1 1 auto;
+  width: 38rem;
+  min-width: 12rem;
+  max-width: none;
+  height: 3rem;
+  padding: 0 1.25rem;
+  font-size: 1.1rem;
+}
+
 /* ── "Listening" pill: partner-visible indicator when the mic is live but
    the full bar is hidden (boards with native integration) ── */
 .ss-listening-pill {
@@ -346,7 +372,8 @@ html[color-scheme="dark"] .ss-notice--action:hover {
 }
 
 /* ── Steering input (type to direct the AI) ── */
-.ss-steer {
+/* .ss-bar input.ss-steer outranks props.css's global input[type="text"] rule */
+.ss-bar input.ss-steer {
   flex: 1 1 12rem;
   min-width: 0;
   max-width: 22rem;
@@ -368,7 +395,7 @@ html[color-scheme="dark"] .ss-notice--action:hover {
   font-style: italic;
 }
 
-.ss-steer:focus {
+.ss-bar input.ss-steer:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px hsl(var(--hue) 60% 55% / 0.2);
 }
