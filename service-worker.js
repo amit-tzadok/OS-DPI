@@ -1,6 +1,6 @@
 var GHPATH = "/OS-DPI";
 var APP_PREFIX = "osdpi_";
-var VERSION = "2026-8-22-23-36-38";
+var VERSION = "2026-8-22-23-51-46";
 var URLS = [
   `${GHPATH}/`,
   `${GHPATH}/index.html`,
@@ -24,7 +24,8 @@ self.addEventListener("fetch", function(e) {
   const url = new URL(e.request.url);
   if (URLS.includes(url.pathname)) {
     e.respondWith(
-      fetch(e.request).then(function(response) {
+      // no-cache: revalidate with the server, never a stale HTTP-cache copy
+      fetch(e.request, { cache: "no-cache" }).then(function(response) {
         if (response.ok) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy));
@@ -41,7 +42,9 @@ self.addEventListener("fetch", function(e) {
 self.addEventListener("install", function(e) {
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(URLS);
+      return cache.addAll(
+        URLS.map((url) => new Request(url, { cache: "reload" }))
+      );
     }).then(
       () => (
         /** @type {ServiceWorkerGlobalScope} */

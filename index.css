@@ -4626,6 +4626,19 @@ body:not(.designing):has(.ss-bar--active) #suggestions {
   max-width: calc(100vw - 1.5rem);
 }
 
+/* ...and reserve room for it below the board, so it doesn't cover the
+   bottom row of buttons while listening (bar: 0.75rem offset + 3.7rem) */
+body:not(.designing):has(.ss-bar--solo .ss-steer) div#UI {
+  height: calc(100% - 4.7rem);
+}
+
+/* narrow phones wrap the bar onto two rows */
+@media (max-width: 480px) {
+  body:not(.designing):has(.ss-bar--solo .ss-steer) div#UI {
+    height: calc(100% - 8.2rem);
+  }
+}
+
 .ss-bar--solo:has(.ss-steer) .ss-listening-pill {
   margin-left: 0;
 }
