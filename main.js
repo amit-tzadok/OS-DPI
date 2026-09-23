@@ -533,6 +533,24 @@ It has never been backed up — the board and its logs will be gone permanently.
     setBoards(names);
     setSavedBoards(saved);
   }
+  async function handleDeleteAll() {
+    if (!boards) return;
+    const unsaved = boards.filter((name) => !savedBoards.includes(name));
+    const count = `${boards.length} board${boards.length === 1 ? "" : "s"}`;
+    const warning = unsaved.length ? `Delete all ${count} from this device?
+
+${unsaved.length} of them ${unsaved.length === 1 ? "has" : "have"} never been backed up and will be gone permanently.` : `Delete all ${count} from this device?
+
+You have downloaded backups of all of them, so you can re-import them later.`;
+    if (!window.confirm(warning)) return;
+    for (const name of boards) {
+      await db$1.unload(name);
+      await db$1.clearLog(name);
+    }
+    const [names, saved] = await Promise.all([db$1.names(), db$1.saved()]);
+    setBoards(names);
+    setSavedBoards(saved);
+  }
   const hasBoards = boards !== null && boards.length > 0;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hs-root", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("header", { className: "hs-header", children: [
@@ -581,7 +599,10 @@ It has never been backed up — the board and its logs will be gone permanently.
         ] })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("main", { className: "hs-main", children: boards === null ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "hs-loading", children: "Loading…" }) : hasBoards ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "hs-section-label", children: "Your boards" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hs-section-head", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "hs-section-label", children: "Your boards" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "hs-delete-all", onClick: handleDeleteAll, children: "Delete all" })
+        ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hs-grid", role: "list", children: boards.map((name) => {
           const initials = name.slice(0, 2).toUpperCase();
           const isSaved = savedBoards.includes(name);
@@ -594,15 +615,17 @@ It has never been backed up — the board and its logs will be gone permanently.
                 "aria-label": `Open board: ${name}`,
                 children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hs-card-avatar", "aria-hidden": "true", children: initials }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-card-name", children: name }),
-                  !isSaved && /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "span",
-                    {
-                      className: "hs-card-badge",
-                      title: "Stored on this device but not exported — use File → Download Backup in the editor to keep an .osdpi copy",
-                      children: "No backup"
-                    }
-                  )
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "hs-card-text", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hs-card-name", children: name }),
+                    !isSaved && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "span",
+                      {
+                        className: "hs-card-badge",
+                        title: "Stored on this device but not exported — use File → Download Backup in the editor to keep an .osdpi copy",
+                        children: "No backup"
+                      }
+                    )
+                  ] })
                 ]
               }
             ),

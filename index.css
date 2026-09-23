@@ -3738,6 +3738,21 @@ html[color-scheme="dark"] .board-card-current {
   margin-top: 0;
 }
 
+.board-gallery-delete-all {
+  margin-left: auto;
+  color: hsl(0 55% 48%);
+}
+
+.board-gallery-delete-all:hover {
+  background: hsl(0 70% 97%);
+  border-color: hsl(0 55% 68%);
+}
+
+html[color-scheme="dark"] .board-gallery-delete-all:hover {
+  background: hsl(0 35% 18%);
+  border-color: hsl(0 45% 42%);
+}
+
 .board-gallery-new {
   background: var(--brand) !important;
   color: #fff !important;

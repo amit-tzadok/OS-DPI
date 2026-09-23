@@ -7,6 +7,8 @@
   inset: 0;
   background: var(--surface1);
   z-index: 50;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
@@ -25,7 +27,7 @@
 
 /* ── Header ── */
 .hs-header {
-  padding: 4rem 2.5rem 3.25rem;
+  padding: 1.25rem 2rem 1.1rem;
   text-align: center;
   background: linear-gradient(
     160deg,
@@ -35,6 +37,7 @@
   border-bottom: 1px solid var(--border-color);
   position: relative;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 /* Glowing orb behind header */
@@ -76,8 +79,8 @@ html[color-scheme="dark"] .hs-header::before {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  margin-bottom: 1.1rem;
-  font-size: 0.68rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.3em;
   text-transform: uppercase;
@@ -96,8 +99,8 @@ html[color-scheme="dark"] .hs-brand {
 
 /* ── Main title ── */
 .hs-title {
-  margin: 0 0 0.75rem;
-  font-size: clamp(2rem, 5vw, 3.2rem);
+  margin: 0 0 0.3rem;
+  font-size: clamp(1.5rem, 3.2vw, 2.1rem);
   font-weight: 800;
   line-height: 1.08;
   letter-spacing: -0.03em;
@@ -107,9 +110,9 @@ html[color-scheme="dark"] .hs-brand {
 /* ── Subtitle ── */
 .hs-subtitle {
   margin: 0 auto;
-  max-width: 38ch;
-  font-size: clamp(0.95rem, 2vw, 1.08rem);
-  line-height: 1.65;
+  max-width: 48ch;
+  font-size: 0.92rem;
+  line-height: 1.4;
   color: var(--text2);
   font-weight: 400;
 }
@@ -119,17 +122,17 @@ html[color-scheme="dark"] .hs-brand {
   display: grid;
   grid-template-columns: 268px 1fr;
   gap: 0;
-  min-height: calc(100vh - 240px);
+  flex: 1 0 auto;
 }
 
 /* ── Sidebar ── */
 .hs-sidebar {
-  padding: 2.5rem 1.5rem;
+  padding: 1.25rem 1.25rem;
   border-right: 1px solid var(--border-color);
   background: var(--surface1);
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.5rem;
 }
 
 /* ── Primary CTA ── */
@@ -139,7 +142,7 @@ html[color-scheme="dark"] .hs-brand {
   justify-content: center;
   gap: 0.5em;
   width: 100%;
-  padding: 0.9rem 1.5rem;
+  padding: 0.7rem 1.25rem;
   background: var(--gradient-brand);
   color: #fff;
   border: none;
@@ -178,7 +181,7 @@ html[color-scheme="dark"] .hs-brand {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 0.2rem 0;
+  margin: 0;
   color: var(--text2);
   font-size: 0.75rem;
   font-weight: 500;
@@ -199,9 +202,9 @@ html[color-scheme="dark"] .hs-brand {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.3em;
+  gap: 0.15em;
   width: 100%;
-  padding: 0.8rem 1rem;
+  padding: 0.6rem 0.85rem;
   background: var(--surface1);
   color: var(--text1);
   border: 1px solid var(--border-color);
@@ -254,7 +257,7 @@ html[color-scheme="dark"] .hs-brand {
   align-items: center;
   gap: 0.65em;
   width: 100%;
-  padding: 0.68rem 1rem;
+  padding: 0.55rem 1rem;
   background: var(--surface1);
   color: var(--text1);
   border: 1px solid var(--border-color);
@@ -293,12 +296,12 @@ html[color-scheme="dark"] .hs-brand {
 
 /* ── Main content area ── */
 .hs-main {
-  padding: 2.5rem 2.25rem;
+  padding: 1.25rem 1.75rem;
 }
 
 /* ── Section label ── */
 .hs-section-label {
-  margin: 0 0 1.2rem;
+  margin: 0;
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.1em;
@@ -309,8 +312,8 @@ html[color-scheme="dark"] .hs-brand {
 /* ── Board card grid ── */
 .hs-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
-  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.6rem;
 }
 
 /* ── Board card ── */
@@ -320,8 +323,9 @@ html[color-scheme="dark"] .hs-brand {
 
 .hs-card-delete {
   position: absolute;
-  top: 0.55rem;
-  right: 0.55rem;
+  top: 50%;
+  right: 0.4rem;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -357,11 +361,10 @@ html[color-scheme="dark"] .hs-card-delete:hover {
 
 .hs-card {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.55rem;
-  padding: 1.2rem;
-  min-height: 7.5rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 2.3rem 0.6rem 0.7rem;
   width: 100%;
   height: 100%;
   background: var(--surface1);
@@ -394,8 +397,8 @@ html[color-scheme="dark"] .hs-card-delete:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 50%;
   background: var(--gradient-brand);
   color: #fff;
@@ -412,8 +415,55 @@ html[color-scheme="dark"] .hs-card-delete:hover {
   color: var(--text1);
   word-break: break-word;
   line-height: 1.3;
-  flex: 1;
   letter-spacing: -0.01em;
+}
+
+.hs-card-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+/* ── Section heading row (label + delete all) ── */
+.hs-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.hs-delete-all {
+  padding: 0.3em 0.75em;
+  margin: 0;
+  min-height: unset;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: hsl(4 65% 45%);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.hs-delete-all:hover {
+  background: hsl(4 70% 94%);
+  border-color: hsl(4 55% 68%);
+}
+
+html[color-scheme="dark"] .hs-delete-all {
+  color: hsl(4 80% 72%);
+}
+
+html[color-scheme="dark"] .hs-delete-all:hover {
+  background: hsl(4 45% 22%);
+  border-color: hsl(4 45% 42%);
 }
 
 .hs-card-badge {
@@ -435,12 +485,12 @@ html[color-scheme="dark"] .hs-card-badge {
 
 /* ── Empty state ── */
 .hs-empty {
-  padding: 1rem 0 3.5rem;
+  padding: 0.5rem 0 1.5rem;
 }
 
 .hs-empty-prompt {
-  margin: 0 0 2.25rem;
-  font-size: 1rem;
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
   color: var(--text2);
   line-height: 1.6;
 }
@@ -453,7 +503,7 @@ html[color-scheme="dark"] .hs-card-badge {
 }
 
 .hs-feature {
-  padding: 1.2rem;
+  padding: 0.9rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background: var(--surface1);
@@ -473,7 +523,7 @@ html[color-scheme="dark"] .hs-card-badge {
   width: 2rem;
   height: 2rem;
   color: var(--brand);
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.5rem;
   padding: 0.4rem;
   background: hsl(var(--hue) 60% 95%);
   border-radius: var(--radius-md);
@@ -537,14 +587,14 @@ html[color-scheme="dark"] .hs-feature-icon {
   .hs-sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border-color);
-    padding: 1.5rem 1.25rem;
+    padding: 1rem 1rem;
   }
 
   .hs-main {
-    padding: 1.75rem 1.25rem 3rem;
+    padding: 1rem 1rem 2rem;
   }
 
   .hs-header {
-    padding: 2.75rem 1.5rem 2.25rem;
+    padding: 1rem 1rem 0.9rem;
   }
 }
