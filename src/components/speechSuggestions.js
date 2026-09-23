@@ -541,13 +541,34 @@ export class SpeechSuggestions {
           Globals.data.setContent(rows);
           await db.write("content", rows);
           // expand the strip (it sits collapsed at scale 0 while idle) to
-          // about a third of the board: half the other sections' combined
-          // scale, so it holds up on any layout the generator built
-          const others = (strip.parent?.children || [])
-            .filter((c) => c !== strip && "scale" in c)
-            .reduce((sum, c) => sum + (+c.scale.value || 0), 0);
-          const expanded = Math.max(1.5, Math.round(others) / 2);
-          if (+strip.scale.value !== expanded) {
+          // about 40% of the board: two-thirds of the other sections'
+          // combined scale, so it holds up on any layout the generator built
+          const siblings = (strip.parent?.children || []).filter(
+            (c) => c !== strip && "scale" in c,
+          );
+          // Boards generated before the generator was rebalanced saved a
+          // category Radio at a full unit per row and a tall word grid;
+          // bring them down to the current sizes so the suggestions have
+          // room (content.js _buildLayout builds new boards this way).
+          let resized = false;
+          for (const c of siblings) {
+            let target = +c.scale.value;
+            if (c.className === "Radio") {
+              target = Math.max(1, Math.ceil(c.children.length / 2) / 2);
+            } else if (c.className === "Grid") {
+              target = Math.min(target, 3.5);
+            }
+            if (target < +c.scale.value) {
+              c.scale.set(target);
+              resized = true;
+            }
+          }
+          const others = siblings.reduce(
+            (sum, c) => sum + (+c.scale.value || 0),
+            0,
+          );
+          const expanded = Math.max(1.5, Math.round((others * 2) / 3 * 2) / 2);
+          if (resized || +strip.scale.value !== expanded) {
             strip.scale.set(expanded);
             await db.write(
               "layout",

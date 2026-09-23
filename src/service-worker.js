@@ -24,23 +24,42 @@ var CACHE_NAME = APP_PREFIX + VERSION;
 self.addEventListener("fetch", function (/** @type {FetchEvent} */ e) {
   const url = new URL(e.request.url);
   if (URLS.includes(url.pathname)) {
+    // Network first, so a deploy shows up on the next load instead of
+    // waiting behind the update button; the cache still covers offline use.
     e.respondWith(
-      caches.match(e.request).then(function (request) {
-        if (request) {
-          return request;
-        } else {
-          return fetch(e.request);
-        }
-      }),
+      // no-cache: revalidate with the server, never a stale HTTP-cache copy
+      fetch(e.request, { cache: "no-cache" })
+        .then(function (response) {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy));
+          }
+          return response;
+        })
+        .catch(function () {
+          return caches.match(e.request).then(
+            (cached) => cached || Response.error(),
+          );
+        }),
     );
   }
 });
 
 self.addEventListener("install", function (/** @type {ExtendableEvent} */ e) {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(URLS);
-    }),
+    caches
+      .open(CACHE_NAME)
+      .then(function (cache) {
+        return cache.addAll(
+          URLS.map((url) => new Request(url, { cache: "reload" })),
+        );
+      })
+      // take over right away rather than waiting for the update button
+      .then(() =>
+        /** @type {ServiceWorkerGlobalScope} */ (
+          /** @type {unknown} */ (self)
+        ).skipWaiting(),
+      ),
   );
 });
 
