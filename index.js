@@ -13859,7 +13859,10 @@ class Grid extends TreeBase {
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;
 
-    return this.component({}, body);
+    // the live AI suggestions strip (speechSuggestions.js) gets its own
+    // larger text
+    const classes = this.name.value === "suggestions" ? ["grid-suggestions"] : [];
+    return this.component({ classes }, body);
   }
 
   settingsDetails() {
@@ -16713,7 +16716,7 @@ class Content extends DesignerPanel {
     if (style === "tabs") {
       const tabs = {
         className: "TabControl",
-        props: { stateName: "$tab", name: "tabs", tabEdge: "top", scale: "7" },
+        props: { stateName: "$tab", name: "tabs", tabEdge: "top", scale: "5" },
         children: [...categories.entries()].map(([cat, count]) => ({
           className: "TabPanel",
           props: { name: cat, label: cat, background: "" },
@@ -16729,11 +16732,16 @@ class Content extends DesignerPanel {
     } else if (style === "categories") {
       // Radio buttons are capped at 45% width (radio.css), so only 2 fit per
       // row — give it enough scale to fit every row, or extra rows get
-      // clipped and painted over by the grid below.
+      // clipped and painted over by the grid below. Half a unit per row
+      // keeps them tappable without crowding out the live suggestions.
       const radioRows = Math.ceil(categories.size / 2);
       const radio = {
         className: "Radio",
-        props: { stateName: "$category", label: "", scale: String(radioRows) },
+        props: {
+          stateName: "$category",
+          label: "",
+          scale: String(Math.max(1, radioRows / 2)),
+        },
         children: [...categories.keys()].map((cat) => ({
           className: "Option",
           props: { name: cat, value: cat },
@@ -16745,7 +16753,7 @@ class Content extends DesignerPanel {
         display,
         suggestionStrip,
         radio,
-        gridSpec(maxCount, "5", [
+        gridSpec(maxCount, "3.5", [
           { field: "#category", operator: "equals", value: "$category" },
         ]),
       ];
@@ -16755,7 +16763,7 @@ class Content extends DesignerPanel {
         display,
         suggestionStrip,
         // exclude the live suggestion rows — they render in the strip above
-        gridSpec(rows.length, "5.5", [
+        gridSpec(rows.length, "4", [
           { field: "#suggestion", operator: "empty", value: "" },
         ]),
       ];
@@ -26552,9 +26560,15 @@ class SpeechSuggestions {
           const rows = [...baseRows, ...suggestionRows];
           Globals.data.setContent(rows);
           await db.write("content", rows);
-          // expand the strip (it sits collapsed at scale 0 while idle)
-          if (+strip.scale.value !== 1.5) {
-            strip.scale.set(1.5);
+          // expand the strip (it sits collapsed at scale 0 while idle) to
+          // about a third of the board: half the other sections' combined
+          // scale, so it holds up on any layout the generator built
+          const others = (strip.parent?.children || [])
+            .filter((c) => c !== strip && "scale" in c)
+            .reduce((sum, c) => sum + (+c.scale.value || 0), 0);
+          const expanded = Math.max(1.5, Math.round(others) / 2);
+          if (+strip.scale.value !== expanded) {
+            strip.scale.set(expanded);
             await db.write(
               "layout",
               Globals.layout.toObject({ omittedProps: [] }),
