@@ -165,7 +165,7 @@ export class Content extends DesignerPanel {
     if (style === "tabs") {
       const tabs = {
         className: "TabControl",
-        props: { stateName: "$tab", name: "tabs", tabEdge: "top", scale: "7" },
+        props: { stateName: "$tab", name: "tabs", tabEdge: "top", scale: "5" },
         children: [...categories.entries()].map(([cat, count]) => ({
           className: "TabPanel",
           props: { name: cat, label: cat, background: "" },
@@ -181,11 +181,16 @@ export class Content extends DesignerPanel {
     } else if (style === "categories") {
       // Radio buttons are capped at 45% width (radio.css), so only 2 fit per
       // row — give it enough scale to fit every row, or extra rows get
-      // clipped and painted over by the grid below.
+      // clipped and painted over by the grid below. Half a unit per row
+      // keeps them tappable without crowding out the live suggestions.
       const radioRows = Math.ceil(categories.size / 2);
       const radio = {
         className: "Radio",
-        props: { stateName: "$category", label: "", scale: String(radioRows) },
+        props: {
+          stateName: "$category",
+          label: "",
+          scale: String(Math.max(1, radioRows / 2)),
+        },
         children: [...categories.keys()].map((cat) => ({
           className: "Option",
           props: { name: cat, value: cat },
@@ -197,7 +202,7 @@ export class Content extends DesignerPanel {
         display,
         suggestionStrip,
         radio,
-        gridSpec(maxCount, "5", [
+        gridSpec(maxCount, "3.5", [
           { field: "#category", operator: "equals", value: "$category" },
         ]),
       ];
@@ -207,7 +212,7 @@ export class Content extends DesignerPanel {
         display,
         suggestionStrip,
         // exclude the live suggestion rows — they render in the strip above
-        gridSpec(rows.length, "5.5", [
+        gridSpec(rows.length, "4", [
           { field: "#suggestion", operator: "empty", value: "" },
         ]),
       ];

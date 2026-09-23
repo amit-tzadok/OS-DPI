@@ -540,9 +540,15 @@ export class SpeechSuggestions {
           const rows = [...baseRows, ...suggestionRows];
           Globals.data.setContent(rows);
           await db.write("content", rows);
-          // expand the strip (it sits collapsed at scale 0 while idle)
-          if (+strip.scale.value !== 1.5) {
-            strip.scale.set(1.5);
+          // expand the strip (it sits collapsed at scale 0 while idle) to
+          // about a third of the board: half the other sections' combined
+          // scale, so it holds up on any layout the generator built
+          const others = (strip.parent?.children || [])
+            .filter((c) => c !== strip && "scale" in c)
+            .reduce((sum, c) => sum + (+c.scale.value || 0), 0);
+          const expanded = Math.max(1.5, Math.round(others) / 2);
+          if (+strip.scale.value !== expanded) {
+            strip.scale.set(expanded);
             await db.write(
               "layout",
               Globals.layout.toObject({ omittedProps: [] }),

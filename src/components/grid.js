@@ -430,7 +430,10 @@ class Grid extends TreeBase {
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;
 
-    return this.component({}, body);
+    // the live AI suggestions strip (speechSuggestions.js) gets its own
+    // larger text
+    const classes = this.name.value === "suggestions" ? ["grid-suggestions"] : [];
+    return this.component({ classes }, body);
   }
 
   settingsDetails() {

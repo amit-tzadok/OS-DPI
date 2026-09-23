@@ -157,6 +157,20 @@ body:not(.designing) video[dbsrc]:not([src]) {
   flex: 0 0 auto;
 }
 
+/* live AI suggestions: the text is the whole point, so make it big
+   (labels without a symbol sit directly in the button) */
+.grid-suggestions button {
+  font-size: 1.7em;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.3em 0.6em;
+}
+
+.grid-suggestions button figure figcaption {
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
 .grid button figure img,
 .grid button figure video {
   object-fit: contain;
