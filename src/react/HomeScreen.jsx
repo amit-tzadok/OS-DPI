@@ -114,6 +114,24 @@ export function HomeScreen() {
     setSavedBoards(saved);
   }
 
+  /** Remove every board (and its logs) from this device */
+  async function handleDeleteAll() {
+    if (!boards) return;
+    const unsaved = boards.filter((name) => !savedBoards.includes(name));
+    const count = `${boards.length} board${boards.length === 1 ? "" : "s"}`;
+    const warning = unsaved.length
+      ? `Delete all ${count} from this device?\n\n${unsaved.length} of them ${unsaved.length === 1 ? "has" : "have"} never been backed up and will be gone permanently.`
+      : `Delete all ${count} from this device?\n\nYou have downloaded backups of all of them, so you can re-import them later.`;
+    if (!window.confirm(warning)) return;
+    for (const name of boards) {
+      await db.unload(name);
+      await db.clearLog(name);
+    }
+    const [names, saved] = await Promise.all([db.names(), db.saved()]);
+    setBoards(names);
+    setSavedBoards(saved);
+  }
+
   const hasBoards = boards !== null && boards.length > 0;
 
   return (
@@ -190,7 +208,12 @@ export function HomeScreen() {
             <p className="hs-loading">Loading…</p>
           ) : hasBoards ? (
             <>
-              <h2 className="hs-section-label">Your boards</h2>
+              <div className="hs-section-head">
+                <h2 className="hs-section-label">Your boards</h2>
+                <button className="hs-delete-all" onClick={handleDeleteAll}>
+                  Delete all
+                </button>
+              </div>
               <div className="hs-grid" role="list">
                 {boards.map((name) => {
                   const initials = name.slice(0, 2).toUpperCase();
@@ -205,15 +228,17 @@ export function HomeScreen() {
                         <div className="hs-card-avatar" aria-hidden="true">
                           {initials}
                         </div>
-                        <span className="hs-card-name">{name}</span>
-                        {!isSaved && (
-                          <span
-                            className="hs-card-badge"
-                            title="Stored on this device but not exported — use File → Download Backup in the editor to keep an .osdpi copy"
-                          >
-                            No backup
-                          </span>
-                        )}
+                        <span className="hs-card-text">
+                          <span className="hs-card-name">{name}</span>
+                          {!isSaved && (
+                            <span
+                              className="hs-card-badge"
+                              title="Stored on this device but not exported — use File → Download Backup in the editor to keep an .osdpi copy"
+                            >
+                              No backup
+                            </span>
+                          )}
+                        </span>
                       </button>
                       <button
                         className="hs-card-delete"

@@ -589,6 +589,8 @@ class DesignListDialog {
     const renderGallery = async () => {
       const names = await db.names();
       const saved = await db.saved();
+      // the open board can't be removed from its own gallery
+      const removable = names.filter((name) => name !== db.designName);
 
       const cards = names.map((name) => {
         const isCurrent = name === db.designName;
@@ -672,6 +674,33 @@ class DesignListDialog {
               dialog.close();
             }}
           >+ New Board</button>
+          ${removable.length > 0
+            ? html`<button
+                class="board-gallery-delete-all"
+                title="Remove every board except the open one from browser storage"
+                @click=${async () => {
+                  const unsaved = removable.filter((n) => !saved.includes(n));
+                  if (
+                    !window.confirm(
+                      `Delete ${removable.length} board${removable.length === 1 ? "" : "s"} from this device?` +
+                        (unsaved.length
+                          ? ` ${unsaved.length} of them ${unsaved.length === 1 ? "is" : "are"} not saved to disk and will be lost.`
+                          : "") +
+                        (names.includes(db.designName)
+                          ? ` The open board "${db.designName}" is kept.`
+                          : ""),
+                    )
+                  )
+                    return;
+                  for (const name of removable) {
+                    await db.unload(name);
+                  }
+                  renderGallery();
+                }}
+              >
+                Delete All
+              </button>`
+            : ""}
           <button @click=${() => dialog.close()}>Close</button>
         </div>
       </div>`;
