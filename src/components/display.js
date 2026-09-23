@@ -46,6 +46,9 @@ class Display extends TreeBase {
           </ol>`
         : html``;
 
+    // shrink the text once it's on screen if it doesn't fit
+    requestAnimationFrame(() => this.fitText());
+
     return this.component(
       {
         style: {
@@ -67,6 +70,27 @@ class Display extends TreeBase {
         }}
       >${content}</button>${historyPanel}`,
     );
+  }
+
+  /** Shrink the text until it fits the box, so the end of a long
+   * sentence (like a live AI suggestion) is never cut off. Steps down
+   * from the configured fontSize to half of it at most. */
+  fitText() {
+    const button = this.current;
+    if (!button || !button.isConnected) return;
+    button.style.fontSize = "";
+    const range = document.createRange();
+    range.selectNodeContents(button);
+    const available = button.clientHeight;
+    if (!available) return;
+    let size = 1;
+    while (
+      size > 0.5 &&
+      range.getBoundingClientRect().height > available + 1
+    ) {
+      size -= 0.05;
+      button.style.fontSize = size.toFixed(2) + "em";
+    }
   }
 
   /** Attempt to locate the word the user is touching
@@ -184,6 +208,7 @@ class Display extends TreeBase {
   init() {
     document.addEventListener("boundary", this);
     document.addEventListener("end", this);
+    window.addEventListener("resize", () => this.fitText());
   }
 }
 TreeBase.register(Display, "Display");
