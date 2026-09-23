@@ -26561,12 +26561,12 @@ class SpeechSuggestions {
           Globals.data.setContent(rows);
           await db.write("content", rows);
           // expand the strip (it sits collapsed at scale 0 while idle) to
-          // about a third of the board: half the other sections' combined
-          // scale, so it holds up on any layout the generator built
+          // about 40% of the board: two-thirds of the other sections'
+          // combined scale, so it holds up on any layout the generator built
           const others = (strip.parent?.children || [])
             .filter((c) => c !== strip && "scale" in c)
             .reduce((sum, c) => sum + (+c.scale.value || 0), 0);
-          const expanded = Math.max(1.5, Math.round(others) / 2);
+          const expanded = Math.max(1.5, Math.round((others * 2) / 3 * 2) / 2);
           if (+strip.scale.value !== expanded) {
             strip.scale.set(expanded);
             await db.write(

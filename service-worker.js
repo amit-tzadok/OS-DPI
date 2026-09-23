@@ -1,6 +1,6 @@
 var GHPATH = "/OS-DPI";
 var APP_PREFIX = "osdpi_";
-var VERSION = "2026-8-22-23-32-14";
+var VERSION = "2026-8-22-23-36-38";
 var URLS = [
   `${GHPATH}/`,
   `${GHPATH}/index.html`,
@@ -24,12 +24,16 @@ self.addEventListener("fetch", function(e) {
   const url = new URL(e.request.url);
   if (URLS.includes(url.pathname)) {
     e.respondWith(
-      caches.match(e.request).then(function(request) {
-        if (request) {
-          return request;
-        } else {
-          return fetch(e.request);
+      fetch(e.request).then(function(response) {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy));
         }
+        return response;
+      }).catch(function() {
+        return caches.match(e.request).then(
+          (cached) => cached || Response.error()
+        );
       })
     );
   }
@@ -38,7 +42,13 @@ self.addEventListener("install", function(e) {
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
       return cache.addAll(URLS);
-    })
+    }).then(
+      () => (
+        /** @type {ServiceWorkerGlobalScope} */
+        /** @type {unknown} */
+        self.skipWaiting()
+      )
+    )
   );
 });
 self.addEventListener("activate", function(e) {
