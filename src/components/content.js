@@ -7,7 +7,8 @@ import "css/content.css";
 import pleaseWait from "./wait";
 import Globals from "app/globals";
 import { fileOpen } from "browser-fs-access";
-import { getGroqKey, setGroqKey } from "./groq";
+import { aiJSON, aiReady, aiKeyPhrase, AIError } from "./ai";
+import { aiSettings } from "./ai/settings";
 
 /** Depth-first search for a node with the given className
  * @param {any} node @param {string} cls */
@@ -69,24 +70,6 @@ export class Content extends DesignerPanel {
   _aiLayoutNote = "";
   /** Note about auto-switch hints in the last generation */
   _aiNextNote = "";
-  /** Transient confirmation shown after the Groq key is saved or removed
-   * @type {"" | "saved" | "cleared"} */
-  _keyNotice = "";
-  /** @type {number | null} */
-  _keyNoticeTimer = null;
-
-  /** @param {"saved" | "cleared"} notice */
-  _showKeyNotice(notice) {
-    this._keyNotice = notice;
-    if (this._keyNoticeTimer !== null) clearTimeout(this._keyNoticeTimer);
-    this._keyNoticeTimer = window.setTimeout(() => {
-      this._keyNotice = "";
-      this._keyNoticeTimer = null;
-      Globals.state.update();
-    }, 3000);
-    Globals.state.update();
-  }
-
   /** After AI generation, rebuild the board to fit the generated rows.
    * Uses a Display message strip plus, when the vocabulary is organised
    * into categories, a TabControl (one tab per category) or a Radio
@@ -352,10 +335,9 @@ export class Content extends DesignerPanel {
    *
    * Mutates rows in place; returns how many hints were applied.
    * @param {Row[]} rows
-   * @param {string} key
    * @returns {Promise<number>}
    */
-  async _fetchNextHints(rows, key) {
+  async _fetchNextHints(rows) {
     try {
       const words = rows.map((r) => `"${r.label}" (${r.category})`).join(", ");
       const prompt =
@@ -366,24 +348,7 @@ export class Content extends DesignerPanel {
         `Return JSON: {"sentences": [["I like", "sunny", "days"], ...]} — ` +
         `each sentence is an array whose elements are words from the list, copied exactly.`;
 
-      const response = await fetch(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${key}`,
-          },
-          body: JSON.stringify({
-            model: "openai/gpt-oss-120b",
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-          }),
-        },
-      );
-      if (!response.ok) return 0;
-      const data = await response.json();
-      const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+      const parsed = await aiJSON({ prompt });
       const sentences = parsed.sentences;
       if (!Array.isArray(sentences)) return 0;
 
@@ -421,9 +386,8 @@ export class Content extends DesignerPanel {
   }
 
   async _generateWithAI() {
-    const key = getGroqKey();
-    if (!key) {
-      this._aiError = "No API key found. Paste your Groq API key in the field below.";
+    if (!aiReady()) {
+      this._aiError = `This needs ${aiKeyPhrase()}. Add it under "AI service" below.`;
       this._aiStatus = "error";
       Globals.state.update();
       return;
@@ -467,29 +431,8 @@ export class Content extends DesignerPanel {
         `or "Did you watch the game?". These are spoken whole when pressed, not built word-by-word like ` +
         `the other items, so users who don't want to build a sentence word-by-word can just tap one.`;
 
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-oss-120b",
-          messages: [{ role: "user", content: prompt }],
-          response_format: { type: "json_object" },
-        }),
-      });
+      const parsed = await aiJSON({ prompt });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error?.message || `API error ${response.status}`);
-      }
-
-      const data = await response.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (!text) throw new Error("Empty response from API");
-
-      const parsed = JSON.parse(text);
       // Handle {"items":[...]} or {"vocabulary":[...]} or a direct array
       const rawRows = Array.isArray(parsed)
         ? parsed
@@ -544,7 +487,6 @@ export class Content extends DesignerPanel {
         // benefit from) an auto-switch hint of their own.
         nextHints = await this._fetchNextHints(
           rows.filter((r) => r.category !== "Phrases"),
-          key,
         );
       }
       console.log("AI board generation:", { layout: parsed.layout, nextHints, rows });
@@ -561,7 +503,10 @@ export class Content extends DesignerPanel {
       this._aiStatus = "success";
       Globals.state.update();
     } catch (/** @type {any} */ err) {
-      this._aiError = err.message || "Unknown error";
+      this._aiError =
+        err instanceof AIError && err.kind === "auth"
+          ? `${err.message} Check it under "AI service" below.`
+          : err.message || "Unknown error";
       this._aiStatus = "error";
       Globals.state.update();
     }
@@ -690,58 +635,7 @@ export class Content extends DesignerPanel {
               ${this._aiStatus === "loading" ? "Generating…" : "✨ Generate"}
             </button>
 
-            <details class="ai-key" ?open=${!getGroqKey()}>
-              <summary>
-                API key ${getGroqKey() ? "✓" : "— required"}
-              </summary>
-              <p class="ai-key-note">
-                This feature needs a free API key from Groq, the AI provider
-                that powers it — it takes about a minute to set up:
-              </p>
-              <ol class="ai-key-steps">
-                <li>
-                  Go to
-                  <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>
-                  and sign up (no cost).
-                </li>
-                <li>Click <strong>Create API Key</strong>, then copy it.</li>
-                <li>Paste it into the field below.</li>
-              </ol>
-              <p class="ai-key-note">
-                It is stored only on this device and is never included when you
-                save or share a design.
-              </p>
-              <input
-                type="password"
-                class="ai-input"
-                placeholder="gsk_…"
-                autocomplete="off"
-                .value=${getGroqKey()}
-                @change=${(/** @type {Event} */ e) => {
-                  const value = /** @type {HTMLInputElement} */ (e.target).value;
-                  setGroqKey(value);
-                  this._showKeyNotice(value.trim() ? "saved" : "cleared");
-                }}
-              />
-              <div class="ai-key-actions">
-                <button
-                  type="button"
-                  class="ai-key-remove-btn"
-                  ?disabled=${!getGroqKey()}
-                  @click=${() => {
-                    setGroqKey("");
-                    this._showKeyNotice("cleared");
-                  }}
-                >
-                  Remove key
-                </button>
-                ${this._keyNotice === "saved"
-                  ? html`<span class="ai-key-confirm">✓ Key saved</span>`
-                  : this._keyNotice === "cleared"
-                    ? html`<span class="ai-key-confirm">Key removed</span>`
-                    : html``}
-              </div>
-            </details>
+            ${aiSettings()}
 
             ${this._aiStatus === "error"
               ? html`<p class="ai-error">⚠ ${this._aiError}</p>`

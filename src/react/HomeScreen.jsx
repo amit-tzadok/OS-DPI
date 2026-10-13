@@ -162,7 +162,7 @@ export function HomeScreen() {
               Start from the DEAN template — a ready-made conversation board
               with live AI response suggestions.
             </span>
-            <span className="hs-choice-note">Needs a free Groq API key</span>
+            <span className="hs-choice-note">Needs an AI service — e.g. a free Groq key</span>
           </button>
 
           <button className="hs-choice" onClick={handleAI}>
@@ -171,7 +171,7 @@ export function HomeScreen() {
               Describe the board you want and let AI build the vocabulary and
               layout for you.
             </span>
-            <span className="hs-choice-note">Needs a free Groq API key</span>
+            <span className="hs-choice-note">Needs an AI service — e.g. a free Groq key</span>
           </button>
 
           {error && <p className="hs-error" role="alert">{error}</p>}

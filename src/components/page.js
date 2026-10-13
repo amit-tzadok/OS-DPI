@@ -14,6 +14,7 @@ export class Page extends StackContainer {
       "Customize",
       "HeadMouse",
       "Indicator",
+      "Prediction",
     );
   }
 }

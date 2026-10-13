@@ -3,13 +3,14 @@ import Globals from "app/globals";
 import db from "app/db";
 import { TreeBase } from "./treebase";
 import { speakSync, preferredVoice } from "./speech";
-import { getGroqKey } from "./groq";
+import { aiJSON, aiReady, aiKeyPhrase, aiProvider, AIError } from "./ai";
 import "css/speechSuggestions.css";
 
 /**
  * Ambient speech recognition + AI-powered AAC response suggestions.
  *
- * Listens to conversation, sends transcript to Groq, and:
+ * Listens to conversation, sends transcript to the AI service chosen in
+ * the AI panel (components/ai), and:
  *   1. Renders a row of quick-tap suggestion chips at the bottom of the board.
  *   2. Pushes those same suggestions into the board's data rows so they appear
  *      as full grid buttons the AAC user can also tap.
@@ -340,16 +341,15 @@ export class SpeechSuggestions {
    * AAC user has just spoken a response, instead of replies to the partner
    */
   async _fetchSuggestions(followUp = false) {
-    const key = getGroqKey();
     const transcript = this._transcript.trim();
     const hint = this._userHint.trim();
     if (!this._listening) return;
-    if (!key) {
+    if (!aiReady()) {
       // once per listening session, not on every debounced transcript update
       if (!this._keyNoticeShown) {
         this._keyNoticeShown = true;
         this._notify(
-          "AI suggestions need a free Groq API key — tap to add one.",
+          `AI suggestions need ${aiKeyPhrase()} — tap to add one.`,
           () => this._openAIKeyPanel(),
         );
       }
@@ -418,65 +418,24 @@ export class SpeechSuggestions {
     const fetchStarted = performance.now();
 
     try {
-      const response = await fetch(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${key}`,
-          },
-          body: JSON.stringify({
-            model: "openai/gpt-oss-120b",
-            messages: [
-              {
-                role: "user",
-                content:
-                  `You are helping an AAC (Augmentative and Alternative Communication) ` +
-                  `user participate in a conversation.\n` +
-                  (history ? `Conversation so far:\n${history}\n\n` : "") +
-                  task +
-                  styleRules,
-              },
-            ],
-            response_format: { type: "json_object" },
-            // openai/gpt-oss-120b is a reasoning model: with no reasoning_effort
-            // set, it burns hundreds of hidden "thinking" tokens before writing
-            // the actual JSON, which used to exhaust the old 300-token cap and
-            // make Groq reject the request outright (json_validate_failed on
-            // empty failed_generation) — every live suggestion failed. Low
-            // effort is plenty for a 6-phrase reply and keeps latency down.
-            reasoning_effort: "low",
-            max_tokens: 600,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        // A class sharing one key will hit per-key rate limits; students
-        // with a mistyped key get 401s. Neither should read as a mystery.
-        if (response.status === 429) {
-          this._notify(
-            "AI suggestion rate limit reached — wait a minute and try again (or tap to add your own free Groq API key).",
-            () => this._openAIKeyPanel(),
-          );
-        } else if (response.status === 401 || response.status === 403) {
-          this._notify(
-            "The Groq API key was rejected — tap to check it.",
-            () => this._openAIKeyPanel(),
-          );
-        }
-        throw new Error(`API error ${response.status}`);
-      }
+      const parsed = await aiJSON({
+        prompt:
+          `You are helping an AAC (Augmentative and Alternative Communication) ` +
+          `user participate in a conversation.\n` +
+          (history ? `Conversation so far:\n${history}\n\n` : "") +
+          task +
+          styleRules,
+        // Reasoning models (e.g. Groq's gpt-oss-120b) otherwise burn
+        // hundreds of hidden "thinking" tokens before writing the JSON —
+        // that once exhausted the token cap and failed every request. Low
+        // effort is plenty for a 6-phrase reply and keeps latency down.
+        effort: "low",
+        maxTokens: 600,
+      });
 
       // a newer fetch started (or listening stopped) while we waited
       if (seq !== this._fetchSeq || !this._listening) return;
 
-      const data = await response.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (!text) throw new Error("Empty response");
-
-      const parsed = JSON.parse(text);
       // tolerate both the new {text, keyword} shape and plain strings
       const items = (parsed.suggestions ?? [])
         .slice(0, 6)
@@ -585,7 +544,28 @@ export class SpeechSuggestions {
           await this._fitGrid(suggestionRows.length);
         }
       }
-    } catch {
+    } catch (error) {
+      // A class sharing one key will hit per-key rate limits; students
+      // with a mistyped key get 401s; a local model may not be running.
+      // None of these should read as a mystery.
+      if (error instanceof AIError) {
+        const name = aiProvider().name;
+        if (error.kind === "rate-limit") {
+          this._notify(
+            `AI suggestion rate limit reached on ${name} — wait a minute and try again (or tap to use your own key).`,
+            () => this._openAIKeyPanel(),
+          );
+        } else if (error.kind === "auth") {
+          this._notify(
+            `The ${name} API key was rejected — tap to check it.`,
+            () => this._openAIKeyPanel(),
+          );
+        } else if (error.kind === "network") {
+          this._notify(`${error.message} Tap to check the AI settings.`, () =>
+            this._openAIKeyPanel(),
+          );
+        }
+      }
       this._aiStatus = "error";
       this._suggestions = [];
     }

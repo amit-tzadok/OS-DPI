@@ -39,6 +39,7 @@ const namesMap = {
   Option: ["Option", "Radio#Option"],
   OrderBy: ["Order By", "Patterns#Order By"],
   Page: ["Page", "Page"],
+  Prediction: ["Word prediction", "Prediction"],
   PatternGroup: ["Group", "Patterns"],
   PatternList: ["Patterns", "Patterns"],
   PatternManager: ["Pattern", "Patterns"],

@@ -1,0 +1,36 @@
+/* Prediction component settings (components/prediction/component.js) */
+
+.prediction-help {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4em;
+  margin-top: 0.5em;
+  padding: 0 0.9em 0.6em;
+  font-size: 0.8rem;
+  color: var(--text2);
+}
+
+.prediction-help p {
+  margin: 0;
+}
+
+.prediction-note {
+  font-weight: 600;
+}
+
+.prediction-help button {
+  padding: 0.3em 0.7em;
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text1);
+  cursor: pointer;
+}
+
+.prediction-help button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

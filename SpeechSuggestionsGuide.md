@@ -11,15 +11,19 @@ suggestions on **your own board**, and how to export the research log.
   API, which Safari and Firefox don't provide. It also needs an internet
   connection (recognition runs on Google's servers) and a secure origin
   (**https** or `localhost`) or the microphone will be blocked.
-- **A Groq API key** (free). Create one at <https://console.groq.com/keys>,
-  then in the designer open the AI panel (Content tab) and paste it into
-  the **API key** field. The key is stored only on your device — it is
-  never saved inside a board file, so each computer you use needs the key
-  entered once.
+- **An AI service.** The default is Groq, which has a free key: create
+  one at <https://console.groq.com/keys>, then in the designer open
+  **Generate with AI** (Content tab) → **AI service** and paste it into
+  the **API key** field. The same panel lets you switch to OpenAI,
+  Anthropic (Claude), a model running locally in Ollama (private, works
+  offline), or any OpenAI-compatible service. Keys and settings are stored
+  only on your device — never inside a board file — so each computer you
+  use needs them entered once.
 
 > **Privacy note for data collection:** while listening, the partner's
 > speech is transcribed by Google (Chrome's speech service) and the
-> transcript is sent to Groq to generate suggestions. If you are
+> transcript is sent to the AI service you chose to generate suggestions
+> (nothing leaves the computer for the AI step if you use Ollama). If you are
 > collecting data with real conversation partners, make sure your
 > consent language covers this, and note the red **Listening** pill /
 > pulsing mic shown while the microphone is live.

@@ -48,7 +48,9 @@ export class Data {
     this.contentRows = [];
     this.dynamicRows = [];
     this.noteRows = [];
-    this.groups = ["dynamicRows", "contentRows", "noteRows"];
+    /** words from the Prediction component, best first */
+    this.predictionRows = [];
+    this.groups = ["predictionRows", "dynamicRows", "contentRows", "noteRows"];
     /** @type {Set<string>} */
     this.allFields = new Set();
     this.setContent(rows);
@@ -71,6 +73,16 @@ export class Data {
   }
 
   /**
+   * Replace the predicted-word rows
+   * @param {Rows} rows
+   */
+  setPredictionRows(rows) {
+    if (!Array.isArray(rows)) return;
+    this.predictionRows = rows;
+    this.updateAllFields();
+  }
+
+  /**
    * Add rows of notes
    * @param {Rows} rows
    */
@@ -83,6 +95,9 @@ export class Data {
   get length() {
     let result = 0;
     for (const group of this.groups) {
+      // predicted words come and go with every keystroke; they aren't
+      // part of the board's content
+      if (group == "predictionRows") continue;
       result += this[group].length;
     }
     return result;
@@ -119,7 +134,12 @@ export class Data {
       operator: filter.operator.value,
       value: filter.value.value,
     }));
-    let result = [...this.dynamicRows, ...this.contentRows, ...this.noteRows];
+    let result = [
+      ...this.predictionRows,
+      ...this.dynamicRows,
+      ...this.contentRows,
+      ...this.noteRows,
+    ];
     for (const filter of boundFilters) {
       if (filter.operator == "only first") {
         const limit = filter.value;

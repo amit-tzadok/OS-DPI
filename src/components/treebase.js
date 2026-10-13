@@ -21,6 +21,7 @@ const componentDescriptions = {
   ModalDialog: "Modal Dialog — popup overlay",
   Radio: "Radio Buttons — choose one option",
   Logger: "Logger — debug log viewer",
+  Prediction: "Word prediction — suggests the next word",
   Option: "Option — list item",
   GridFilter: "Grid Filter — filter grid content",
   // Access method components

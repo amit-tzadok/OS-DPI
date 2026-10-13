@@ -40,7 +40,6 @@
   gap: 0.5em;
 }
 
-
 .ai-input {
   width: 100%;
   padding: 0.35em 0.6em;
@@ -65,69 +64,9 @@
   resize: vertical;
 }
 
-.ai-key > summary {
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text2);
-  user-select: none;
-}
-
-.ai-key-note {
-  margin: 0.3em 0;
-  font-size: 0.76rem;
-  color: var(--text2);
-}
-
-.ai-key-steps {
-  margin: 0.3em 0;
-  padding-left: 1.2em;
-  font-size: 0.76rem;
-  color: var(--text2);
-  list-style-type: decimal;
-}
-
-.ai-key-steps li {
-  margin: 0.2em 0;
-}
-
 .ai-row {
   display: flex;
   gap: 0.6em;
-}
-
-.ai-key-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.7em;
-  margin-top: 0.35em;
-}
-
-.ai-key-remove-btn {
-  padding: 0.25em 0.6em;
-  font-size: 0.74rem;
-  font-weight: 600;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--surface2);
-  color: var(--text2);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.ai-key-remove-btn:hover:not(:disabled) {
-  background: var(--surface3);
-}
-
-.ai-key-remove-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.ai-key-confirm {
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: hsl(var(--hue) 50% 32%);
 }
 
 .ai-col {

@@ -14,7 +14,7 @@ const fullReloadAlways = {
   },
 };
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: "/OS-DPI/",
   resolve: {
     alias: {
@@ -45,6 +45,10 @@ export default defineConfig({
   },
   define: {
     APP_VERSION: version,
+    // A dev key in .env is for `npm start` on the developer's own machine
+    // only. Never let any build carry it: anything in the bundle is public,
+    // and everyone using the site would be spending that key.
+    ...(command === "build" && { "import.meta.env.VITE_GROQ_API_KEY": '""' }),
   },
   plugins: [react(), fullReloadAlways],
-});
+}));
