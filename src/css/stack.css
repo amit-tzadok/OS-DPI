@@ -112,3 +112,68 @@ body.designing .row > div {
   flex-shrink: 0;
   min-width: 80px;
 }
+
+/* ── Designer: bars between pieces to drag to resize (stack.js) ── */
+body.designing .row > div,
+body.designing .column > div {
+  position: relative;
+}
+
+.resize-handle {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background-color var(--transition-fast);
+}
+
+/* a grip that is always showing, so the bar can be found */
+.resize-handle::before {
+  content: "";
+  border-radius: 3px;
+  background: var(--text2);
+  opacity: 0.45;
+  transition:
+    opacity var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+/* 14px to grab, centred on the 5px gap between pieces */
+.column > div > .resize-handle {
+  left: 0;
+  right: 0;
+  bottom: -9.5px;
+  height: 14px;
+  cursor: row-resize;
+}
+
+.column > div > .resize-handle::before {
+  width: 44px;
+  height: 5px;
+}
+
+.row > div > .resize-handle {
+  top: 0;
+  bottom: 0;
+  right: -9.5px;
+  width: 14px;
+  cursor: col-resize;
+}
+
+.row > div > .resize-handle::before {
+  width: 5px;
+  height: 44px;
+}
+
+.resize-handle:hover,
+.resize-handle.dragging {
+  background: hsl(var(--hue) 60% 60% / 0.18);
+}
+
+.resize-handle:hover::before,
+.resize-handle.dragging::before {
+  background: var(--brand);
+  opacity: 1;
+}

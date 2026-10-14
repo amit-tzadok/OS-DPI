@@ -3,6 +3,56 @@ import * as Props from "./props";
 import { html } from "uhtml";
 import { styleString } from "./style";
 import "css/stack.css";
+import Globals from "app/globals";
+
+/**
+ * Let the bar between two pieces be dragged to share the room between
+ * them differently (designer only). Their scales change but keep their
+ * total, so the rest of the row or column stays put.
+ * @param {PointerEvent} event
+ * @param {StackContainer} container
+ * @param {TreeBase} before
+ * @param {TreeBase} after
+ */
+function startResize(event, container, before, after) {
+  if (!event.isPrimary) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const element = document.getElementById(container.id);
+  if (!element) return;
+  const horizontal = container.direction.value == "row";
+  const length = horizontal ? element.clientWidth : element.clientHeight;
+  const total = container.children.reduce(
+    (sum, child) => sum + Math.max(0, +child["scale"]?.value || 0),
+    0,
+  );
+  const a = +before["scale"].value;
+  const b = +after["scale"].value;
+  const start = horizontal ? event.clientX : event.clientY;
+  const handle = /** @type {HTMLElement} */ (event.currentTarget);
+  handle.setPointerCapture(event.pointerId);
+  handle.classList.add("dragging");
+  // neither piece shrinks away to nothing
+  const least = (a + b) * 0.1;
+
+  const move = (/** @type {PointerEvent} */ e) => {
+    const moved = ((horizontal ? e.clientX : e.clientY) - start) / length;
+    const shift = Math.min(b - least, Math.max(least - a, moved * total));
+    before["scale"].set(Math.round((a + shift) * 100) / 100);
+    after["scale"].set(Math.round((b - shift) * 100) / 100);
+    Globals.state.update();
+  };
+  const end = () => {
+    handle.classList.remove("dragging");
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("pointerup", end);
+    handle.removeEventListener("pointercancel", end);
+    container.update(); // save, with undo
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+}
 
 export class StackContainer extends TreeBase {
   direction = new Props.Select(["row", "column"], {
@@ -132,6 +182,7 @@ export class StackContainer extends TreeBase {
     const empty = this.children.length && scaleSum ? "" : "empty";
     const direction = this.direction.value;
     const dimension = direction == "row" ? "width" : "height";
+    const editing = !!Globals.state?.get("editing");
 
     return this.component(
       {
@@ -140,16 +191,31 @@ export class StackContainer extends TreeBase {
           backgroundColor: this.background.value,
         },
       },
-      this.children.map((child) => {
+      this.children.map((child, index) => {
         let size = (100 * getScale(child)) / scaleSum;
         if (Number.isNaN(size)) size = 0;
+
+        // in the designer, a bar to drag between this piece and the next
+        // one that has room (pieces sized 0 are hidden)
+        const next = this.children
+          .slice(index + 1)
+          .find((other) => getScale(other) > 0);
+        const handle =
+          editing && next && getScale(child) > 0
+            ? html`<div
+                class="resize-handle"
+                title="Drag to resize"
+                @pointerdown=${(/** @type {PointerEvent} */ e) =>
+                  startResize(e, this, child, next)}
+              ></div>`
+            : html``;
 
         return html`<div
           style=${styleString({
             [dimension]: `${size}%`,
           })}
         >
-          ${child.safeTemplate()}
+          ${child.safeTemplate()}${handle}
         </div>`;
       }),
     );

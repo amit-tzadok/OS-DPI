@@ -394,12 +394,10 @@ export class PatternManager extends PatternBase {
         index: event?.groupIndex || 0,
       });
     } else if (current instanceof HTMLButtonElement) {
-      // In the designer a click on a grid cell edits its word (grid.js)
-      // instead of pressing it; Preview is where the board gets tried out.
-      if (
-        Globals.state.get("editing") &&
-        current.dataset.ComponentType === "Grid"
-      ) {
+      // In the designer a click selects a piece (layout.js) or edits a
+      // grid word (grid.js) instead of pressing it; Preview is where the
+      // board gets tried out. Tabs still switch, so each can be edited.
+      if (Globals.state.get("editing") && !current.hasAttribute("click")) {
         this.cue();
         return;
       }

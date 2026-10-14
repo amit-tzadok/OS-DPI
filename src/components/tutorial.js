@@ -51,11 +51,12 @@ const steps = [
   {
     tab: "Layout",
     find: () => document.querySelector("#tabs .panels"),
-    title: "Layout: the structure",
+    title: "Layout: the pieces of your board",
     body:
-      "The Layout panel is a tree of components — a Page holding Grids, " +
-      "Stacks, Displays, and Buttons. Select a component to edit its " +
-      "properties, and use the Add menu to put new pieces inside it.",
+      "Add pieces here — a message bar, word grids, buttons, tabs. Click " +
+      "a piece on the board to change it or add another next to it, and " +
+      "drag the bar between two pieces to resize them. The full component " +
+      "tree is under “All components (advanced)”.",
   },
   {
     tab: "Content",
@@ -128,8 +129,8 @@ const steps = [
   {
     title: "That’s the tour!",
     body:
-      "Start with Generate with AI or add a Grid in Layout, drop in some " +
-      "media, and press Preview. You can run this tour again any time " +
+      "Start with Generate with AI or add a Word grid in Layout, type in " +
+      "some words, and press Preview. You can run this tour again any time " +
       "from Help → Tutorial.",
   },
 ];

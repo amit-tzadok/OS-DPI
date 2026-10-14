@@ -7,8 +7,21 @@ import Globals from "app/globals";
 import { TabPanel } from "./tabcontrol";
 import { callAfterRender } from "app/render";
 import { ModalDialog } from "./modal-dialog";
-import { starterLayout } from "./starterBoard";
-
+import {
+  blankLayout,
+  pieceKinds,
+  pieceAt,
+  pieceLabel,
+  addPiece,
+  addTab,
+  renameTab,
+  removePiece,
+  toggleClearButton,
+  moveTarget,
+  movePiece,
+  clearButtonFor,
+  visualClasses,
+} from "./pieces";
 
 // map old names to new for the transition
 const typeToClassName = {
@@ -33,12 +46,44 @@ export class Layout extends DesignerPanel {
   allowDelete = false;
 
   static tableName = "layout";
-  static defaultValue = starterLayout;
+  static defaultValue = blankLayout;
 
   uiScale = new Props.Float(0.7);
 
   /** @type {string} */
   _searchQuery = "";
+
+  /** The piece clicked on the board
+   * @type {TreeBase | null} */
+  _selected = null;
+
+  /** Where the next piece goes while the Add menu is open
+   * @type {{anchor: TreeBase | null, side: "above" | "below" | "left" | "right" | "inside"} | null} */
+  _adding = null;
+
+  /** Whether the full component tree is showing */
+  _showTree = false;
+
+  /** The selected piece, if it is still on the board */
+  get selected() {
+    const selected = this._selected;
+    if (selected && TreeBase.idMap.get(selected.id) === selected) {
+      return selected;
+    }
+    return null;
+  }
+
+  /** @param {TreeBase | null} component */
+  select(component) {
+    if (component === this.selected) return;
+    this._selected = component;
+    this._adding = null;
+    // show the Layout tab, without moving focus off the board (a click
+    // on an empty square there opens a text box)
+    const designer = Globals.designer;
+    const patch = component && designer ? { [designer.stateName.value]: this.name.value } : {};
+    Globals.state.update(patch);
+  }
 
   settings() {
     const self = this;
@@ -54,10 +99,19 @@ export class Layout extends DesignerPanel {
         }
       }}
     >
+      ${this.simpleView()}
+      <details
+        class="layout-tree"
+        ?open=${this._showTree}
+        @toggle=${(/** @type {Event} */ e) => {
+          this._showTree = /** @type {HTMLDetailsElement} */ (e.target).open;
+        }}
+      >
+        <summary>All components (advanced)</summary>
       <details class="panel-help">
         <summary>About the Layout tab</summary>
         <div class="panel-help-body">
-          <p>Build your board's visual structure here. The tree below shows every component on the board — pages, containers, buttons, displays, and more.</p>
+          <p>The full tree of every component on the board — pages, containers, buttons, displays, and more. For everyday building, use the pieces above instead.</p>
           <ul>
             <li>Expand any item to edit its properties.</li>
             <li>Use the <strong>＋ Add…</strong> selector inside a component to add children (Stacks, Grids, Buttons, etc.).</li>
@@ -81,7 +135,308 @@ export class Layout extends DesignerPanel {
         />
       </div>
       ${this.children[0].settings()}
+      </details>
     </div>`;
+  }
+
+  /** The plain-language editor: add pieces, and change the one clicked */
+  simpleView() {
+    const selected = this.selected;
+    const page = this.children[0];
+    const empty = !page.children.some((c) => visualClasses.has(c.className));
+    // outline the selected piece on the board
+    const outline = html`<style
+      .textContent=${selected
+        ? `body.designing #UI [id="${selected.id}"] {
+            outline: 3px solid var(--brand);
+            outline-offset: -3px;
+          }`
+        : ""}
+    ></style>`;
+
+    let body;
+    if (this._adding) {
+      body = this.addMenu();
+    } else if (selected) {
+      body = this.inspector(selected);
+    } else if (empty) {
+      this._adding = { anchor: null, side: "below" };
+      body = this.addMenu();
+    } else {
+      body = html`<p class="piece-hint">
+          Click a piece on the board to change it, or click an empty
+          square in a word grid to add a word.
+        </p>
+        <button
+          class="piece-action"
+          @click=${() => {
+            this._adding = { anchor: null, side: "below" };
+            Globals.state.update();
+          }}
+        >
+          + Add a piece at the bottom
+        </button>`;
+    }
+    return html`<div class="layout-simple">${outline}${body}</div>`;
+  }
+
+  /** The choice of pieces to add */
+  addMenu() {
+    const adding = /** @type {NonNullable<Layout["_adding"]>} */ (this._adding);
+    const page = this.children[0];
+    const empty = !page.children.some((c) => visualClasses.has(c.className));
+    const where = adding.anchor
+      ? adding.side === "inside"
+        ? "inside this tab"
+        : `${adding.side === "above" || adding.side === "below" ? adding.side : "to the " + adding.side} of the ${pieceLabel(adding.anchor).toLowerCase()}`
+      : "";
+    return html`<h3 class="piece-heading">
+        ${empty ? "Your board is empty. Add a first piece:" : `Add a piece ${where}`}
+      </h3>
+      <div class="piece-menu">
+        ${pieceKinds.map(
+          (piece) => html`<button
+            class="piece-choice"
+            @click=${() => {
+              this._adding = null;
+              this._selected = addPiece(piece.kind, adding.anchor, adding.side);
+            }}
+          >
+            <span class="piece-icon" aria-hidden="true">${piece.icon}</span>
+            <strong>${piece.label}</strong>
+            <span>${piece.about}</span>
+          </button>`,
+        )}
+      </div>
+      ${empty
+        ? html`<p class="piece-hint">
+            Tip: start with a Message bar, then add a Word grid below it.
+          </p>`
+        : html`<button
+            class="piece-action"
+            @click=${() => {
+              this._adding = null;
+              Globals.state.update();
+            }}
+          >
+            Cancel
+          </button>`}`;
+  }
+
+  /** Settings for the selected piece
+   * @param {TreeBase} piece */
+  inspector(piece) {
+    /** @param {"above" | "below" | "left" | "right" | "inside"} side */
+    const startAdding = (side) => {
+      this._adding = { anchor: piece, side };
+      Globals.state.update();
+    };
+    /** @type {["above" | "below" | "left" | "right", string][]} */
+    const sides = [
+      ["above", "↑ Up"],
+      ["below", "↓ Down"],
+      ["left", "← Left"],
+      ["right", "→ Right"],
+    ];
+    const isTab = piece.className === "TabPanel";
+    const canRemove = !isTab || (piece.parent?.children.length ?? 0) > 1;
+    return html`<div class="piece-inspector">
+      <div class="piece-title">
+        <h3>${pieceLabel(piece)}${isTab ? `: ${piece["label"].value}` : ""}</h3>
+        <button
+          class="piece-done"
+          title="Stop changing this piece"
+          @click=${() => this.select(null)}
+        >
+          Done
+        </button>
+      </div>
+      ${this.pieceSettings(piece)}
+      ${isTab
+        ? piece.children.length
+          ? html``
+          : html`<button class="piece-action" @click=${() => startAdding("inside")}>
+              + Add a piece inside this tab
+            </button>`
+        : html`<div class="piece-add">
+            <span>Move it:</span>
+            <div class="piece-sides">
+              ${sides.map(
+                ([side, label]) => html`<button
+                  ?disabled=${!moveTarget(piece, side)}
+                  aria-label=${`Move ${side === "above" ? "up" : side === "below" ? "down" : side}`}
+                  @click=${() => movePiece(piece, side)}
+                >
+                  ${label}
+                </button>`,
+              )}
+            </div>
+          </div>
+          <div class="piece-add">
+            <span>Add a piece next to it:</span>
+            <div class="piece-sides">
+              <button @click=${() => startAdding("above")} aria-label="Add above">↑ Above</button>
+              <button @click=${() => startAdding("below")} aria-label="Add below">↓ Below</button>
+              <button @click=${() => startAdding("left")} aria-label="Add to the left">← Left</button>
+              <button @click=${() => startAdding("right")} aria-label="Add to the right">→ Right</button>
+            </div>
+          </div>`}
+      ${canRemove
+        ? html`<button
+            class="piece-action piece-remove"
+            @click=${() => {
+              const tabs = isTab ? piece.parent : null;
+              removePiece(piece);
+              this.select(tabs ?? null);
+            }}
+          >
+            ${isTab ? "Remove this tab" : "Remove from the board"}
+          </button>`
+        : html``}
+      <p class="piece-hint">Drag the grey bars between pieces on the board to resize them.</p>
+    </div>`;
+  }
+
+  /** The few settings that matter for each kind of piece
+   * @param {TreeBase} piece */
+  pieceSettings(piece) {
+    /** @param {string} label @param {any} prop @param {number} min @param {number} max */
+    const number = (label, prop, min, max) => html`<label class="piece-field">
+      <span>${label}</span>
+      <input
+        type="number"
+        min=${min}
+        max=${max}
+        .value=${String(prop.value)}
+        @change=${(/** @type {Event} */ e) => {
+          const input = /** @type {HTMLInputElement} */ (e.target);
+          const value = Math.min(max, Math.max(min, Math.round(+input.value || min)));
+          prop.set(value);
+          piece.update();
+        }}
+      />
+    </label>`;
+    /** @param {string} label @param {any} prop */
+    const text = (label, prop) => html`<label class="piece-field">
+      <span>${label}</span>
+      <input
+        type="text"
+        .value=${String(prop.value)}
+        @change=${(/** @type {Event} */ e) => {
+          prop.set(/** @type {HTMLInputElement} */ (e.target).value);
+          piece.update();
+        }}
+      />
+    </label>`;
+
+    switch (piece.className) {
+      case "Grid": {
+        const fill = piece["fillItems"];
+        return html`${number("Rows", piece["rows"], 1, 12)}
+          ${number("Columns", piece["columns"], 1, 12)}
+          <fieldset class="piece-field">
+            <legend>Words go</legend>
+            <label
+              ><input
+                type="radio"
+                name=${piece.id + "-fill"}
+                ?checked=${fill.value}
+                @change=${() => {
+                  fill.set(true);
+                  piece.update();
+                }}
+              />
+              in order, filling each row</label
+            >
+            <label
+              ><input
+                type="radio"
+                name=${piece.id + "-fill"}
+                ?checked=${!fill.value}
+                @change=${() => {
+                  fill.set(false);
+                  piece.update();
+                }}
+              />
+              in the square I click</label
+            >
+          </fieldset>
+          <p class="piece-hint">
+            Click an empty square on the board to add a word. Press Enter to
+            go on to the next square, or paste a list.
+          </p>`;
+      }
+      case "Display": {
+        const size = piece["fontSize"];
+        const sizes = [
+          ["Small", 1.5],
+          ["Medium", 2],
+          ["Large", 3],
+          ["Extra large", 4],
+        ];
+        // a size set elsewhere stays selectable
+        if (!sizes.some(([, value]) => value == size.value)) {
+          sizes.push([`Custom (${size.value})`, size.value]);
+        }
+        return html`<label class="piece-field">
+            <span>Text size</span>
+            <select
+              @change=${(/** @type {Event} */ e) => {
+                size.set(/** @type {HTMLSelectElement} */ (e.target).value);
+                piece.update();
+              }}
+            >
+              ${sizes.map(
+                ([label, value]) =>
+                  html`<option value=${value} ?selected=${size.value == value}>
+                    ${label}
+                  </option>`,
+              )}
+            </select>
+          </label>
+          <label class="piece-field piece-check">
+            <input
+              type="checkbox"
+              ?checked=${!!clearButtonFor(piece)}
+              @change=${() => toggleClearButton(piece)}
+            />
+            <span>Clear button next to it</span>
+          </label>`;
+      }
+      case "Button":
+        return html`${text("Says", piece["label"])}`;
+      case "TabControl":
+        return html`<div class="piece-field piece-tabs">
+            <span>Tabs</span>
+            ${piece.children.map(
+              (tab) => html`<input
+                type="text"
+                aria-label="Tab name"
+                .value=${String(tab["label"].value)}
+                @change=${(/** @type {Event} */ e) =>
+                  renameTab(tab, /** @type {HTMLInputElement} */ (e.target).value)}
+              />`,
+            )}
+            <button class="piece-action" @click=${() => addTab(piece)}>
+              + Add a tab
+            </button>
+          </div>
+          <p class="piece-hint">
+            Click a tab on the board to show it, then click inside it to
+            change what it holds.
+          </p>`;
+      case "TabPanel":
+        return html`${text("Tab name", {
+          get value() {
+            return piece["label"].value;
+          },
+          set: (/** @type {string} */ value) => renameTab(piece, value),
+        })}`;
+      default:
+        return html`<p class="piece-hint">
+          This piece's settings are in “All components (advanced)” below.
+        </p>`;
+    }
   }
 
   /**
@@ -245,3 +600,17 @@ export class Layout extends DesignerPanel {
   }
 }
 TreeBase.register(Layout, "Layout");
+
+// In the designer, clicking a piece on the board selects it for the
+// Layout tab (capture phase, before the piece handles the click itself)
+document.addEventListener(
+  "click",
+  (event) => {
+    if (!Globals.state?.get("editing") || !Globals.layout) return;
+    const board = document.getElementById("UI");
+    if (!board || !board.contains(/** @type {Node} */ (event.target))) return;
+    if (event.target instanceof Element && event.target.closest(".resize-handle")) return;
+    Globals.layout.select(pieceAt(event.target));
+  },
+  true,
+);
