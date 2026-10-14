@@ -13525,6 +13525,269 @@ function slotName(message) {
   };
 }
 
+class AIError extends Error {
+  /**
+   * @param {"no-key" | "auth" | "rate-limit" | "network" | "refused" | "bad-response" | "http"} kind
+   * @param {string} message
+   */
+  constructor(kind, message) {
+    super(message);
+    this.kind = kind;
+  }
+}
+const providers = /* @__PURE__ */ new Map();
+function registerAIProvider(provider) {
+  providers.set(provider.id, provider);
+}
+function aiProviders() {
+  return [...providers.values()];
+}
+const SETTINGS_KEY = "os-dpi-ai-settings";
+const LEGACY_GROQ_KEY = "os-dpi-groq-key";
+function readSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+function writeSettings(settings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+function keyStorageName(id) {
+  return id === "groq" ? LEGACY_GROQ_KEY : `os-dpi-ai-key:${id}`;
+}
+function aiProvider() {
+  const id = readSettings().provider || "groq";
+  return providers.get(id) || /** @type {AIProvider} */
+  providers.get("groq");
+}
+function setAIProvider(id) {
+  if (!providers.has(id)) return;
+  writeSettings({ ...readSettings(), provider: id });
+}
+function getAIKey(id = aiProvider().id) {
+  const stored = (localStorage.getItem(keyStorageName(id)) || "").trim();
+  if (stored) return stored;
+  if (id === "groq") {
+    const env = "".trim();
+    if (env && env !== "your_groq_api_key_here") return env;
+  }
+  return "";
+}
+function setAIKey(key, id = aiProvider().id) {
+  key = key.trim();
+  if (key) localStorage.setItem(keyStorageName(id), key);
+  else localStorage.removeItem(keyStorageName(id));
+}
+function getAIModel(id = aiProvider().id) {
+  return readSettings().models?.[id] || providers.get(id)?.defaultModel || "";
+}
+function setAIModel(model, id = aiProvider().id) {
+  const settings = readSettings();
+  settings.models = { ...settings.models, [id]: model.trim() };
+  if (!model.trim()) delete settings.models[id];
+  writeSettings(settings);
+}
+function getAIBaseUrl(id = aiProvider().id) {
+  return readSettings().baseUrls?.[id] || providers.get(id)?.defaultBaseUrl || "";
+}
+function setAIBaseUrl(url, id = aiProvider().id) {
+  const settings = readSettings();
+  settings.baseUrls = { ...settings.baseUrls, [id]: url.trim() };
+  if (!url.trim()) delete settings.baseUrls[id];
+  writeSettings(settings);
+}
+function aiReady() {
+  const provider = aiProvider();
+  return provider.key !== "required" || !!getAIKey(provider.id);
+}
+function aiKeyPhrase() {
+  const provider = aiProvider();
+  return provider.id === "groq" ? "a free Groq API key" : `an API key for ${provider.name}`;
+}
+async function aiComplete(request) {
+  const provider = aiProvider();
+  const config = {
+    model: getAIModel(provider.id),
+    baseUrl: getAIBaseUrl(provider.id).replace(/\/+$/, ""),
+    key: getAIKey(provider.id)
+  };
+  if (provider.key === "required" && !config.key) {
+    throw new AIError("no-key", `${provider.name} needs an API key.`);
+  }
+  return provider.complete(config, request);
+}
+async function aiJSON(request) {
+  const text = await aiComplete({ ...request, json: true });
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(text.slice(start, end + 1));
+      } catch {
+      }
+    }
+    throw new AIError("bad-response", "The AI reply was not valid JSON.");
+  }
+}
+async function openAICompatible(config, request, options = {}) {
+  const body = {
+    model: config.model,
+    messages: [{ role: "user", content: request.prompt }]
+  };
+  if (request.json) body.response_format = { type: "json_object" };
+  if (request.effort && /gpt-oss|^gpt-5|^o\d/.test(config.model)) {
+    body.reasoning_effort = request.effort;
+  }
+  if (request.maxTokens) {
+    body[options.maxTokensField || "max_tokens"] = request.maxTokens;
+  }
+  const headers = { "Content-Type": "application/json" };
+  if (config.key) headers.Authorization = `Bearer ${config.key}`;
+  let response;
+  try {
+    response = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: request.signal
+    });
+  } catch (error) {
+    if (request.signal?.aborted) throw error;
+    throw new AIError(
+      "network",
+      `Couldn't reach ${config.baseUrl}. Check the address and your connection.`
+    );
+  }
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new AIError("auth", "The API key was rejected.");
+    }
+    if (response.status === 429) {
+      throw new AIError("rate-limit", "Rate limit reached.");
+    }
+    const err = await response.json().catch(() => ({}));
+    throw new AIError(
+      "http",
+      err.error?.message || `AI service error ${response.status}`
+    );
+  }
+  const data = await response.json();
+  const text = data.choices?.[0]?.message?.content;
+  if (!text) throw new AIError("bad-response", "Empty reply from the AI.");
+  return text;
+}
+registerAIProvider({
+  id: "groq",
+  name: "Groq",
+  description: "Free key, fast cloud models. The default.",
+  defaultModel: "openai/gpt-oss-120b",
+  defaultBaseUrl: "https://api.groq.com/openai/v1",
+  key: "required",
+  keyUrl: "https://console.groq.com/keys",
+  keyPlaceholder: "gsk_…",
+  complete: (config, request) => openAICompatible(config, request)
+});
+registerAIProvider({
+  id: "openai",
+  name: "OpenAI",
+  description: "Paid key from platform.openai.com.",
+  defaultModel: "gpt-5-mini",
+  defaultBaseUrl: "https://api.openai.com/v1",
+  key: "required",
+  keyUrl: "https://platform.openai.com/api-keys",
+  keyPlaceholder: "sk-…",
+  complete: (config, request) => openAICompatible(config, request, {
+    maxTokensField: "max_completion_tokens"
+  })
+});
+registerAIProvider({
+  id: "anthropic",
+  name: "Anthropic (Claude)",
+  description: "Paid key from console.anthropic.com.",
+  defaultModel: "claude-opus-5",
+  key: "required",
+  keyUrl: "https://console.anthropic.com/settings/keys",
+  keyPlaceholder: "sk-ant-…",
+  complete: anthropicComplete
+});
+registerAIProvider({
+  id: "ollama",
+  name: "Ollama (on this computer)",
+  description: "Runs a model locally — private and works offline. Install Ollama and pull a model first.",
+  defaultModel: "llama3.2",
+  defaultBaseUrl: "http://localhost:11434/v1",
+  key: "none",
+  complete: (config, request) => openAICompatible(config, request)
+});
+registerAIProvider({
+  id: "custom",
+  name: "Other (OpenAI-compatible)",
+  description: "Any service with an OpenAI-style /chat/completions endpoint, e.g. LM Studio or OpenRouter.",
+  defaultModel: "",
+  defaultBaseUrl: "http://localhost:1234/v1",
+  key: "optional",
+  complete: (config, request) => openAICompatible(config, request)
+});
+async function anthropicComplete(config, request) {
+  const { default: Anthropic } = await __vitePreload(async () => { const { default: Anthropic } = await import('./index2.js').then(n => n.i);return { default: Anthropic }},true?[]:void 0);
+  const client = new Anthropic({
+    apiKey: config.key,
+    dangerouslyAllowBrowser: true,
+    maxRetries: 1
+  });
+  const content = request.json ? `${request.prompt}
+
+Respond with only the JSON object, no other text.` : request.prompt;
+  const params = {
+    model: config.model,
+    max_tokens: 16e3,
+    messages: [{ role: "user", content }]
+  };
+  if (request.effort && !/haiku/.test(config.model)) {
+    params.output_config = { effort: request.effort };
+  }
+  let message;
+  try {
+    if (/^claude-(opus-5$|fable-5)/.test(config.model)) {
+      message = await client.beta.messages.create(
+        {
+          ...params,
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default"
+        },
+        { signal: request.signal }
+      );
+    } else {
+      message = await client.messages.create(params, {
+        signal: request.signal
+      });
+    }
+  } catch (error) {
+    if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
+      throw new AIError("auth", "The API key was rejected.");
+    } else if (error instanceof Anthropic.RateLimitError) {
+      throw new AIError("rate-limit", "Rate limit reached.");
+    } else if (error instanceof Anthropic.APIConnectionError) {
+      if (request.signal?.aborted) throw error;
+      throw new AIError("network", "Couldn't reach Anthropic.");
+    } else if (error instanceof Anthropic.APIError) {
+      throw new AIError("http", error.message);
+    }
+    throw error;
+  }
+  if (message.stop_reason === "refusal") {
+    throw new AIError("refused", "The AI declined this request.");
+  }
+  const text = message.content.filter((block) => block.type === "text").map((block) => block.text).join("");
+  if (!text) throw new AIError("bad-response", "Empty reply from the AI.");
+  return text;
+}
+
 /**
  * keyword → ARASAAC pictogram URL ("" when no match) so repeated concepts
  * are only looked up once per session
@@ -13570,6 +13833,121 @@ async function findPictogram(keyword) {
  * @param {string | undefined} symbol */
 function isPictogram(symbol) {
   return !!symbol && symbol.startsWith("https://static.arasaac.org/");
+}
+
+/** keyword → pictogram URLs from a full search, cached for the session
+ * @type {Map<string, Promise<string[]>>} */
+const searches = new Map();
+
+/**
+ * Pictogram URLs matching a keyword, best first ([] when none or offline)
+ * @param {string} keyword
+ * @returns {Promise<string[]>}
+ */
+function searchPictograms(keyword) {
+  keyword = keyword.trim().toLowerCase();
+  if (!keyword) return Promise.resolve([]);
+  let result = searches.get(keyword);
+  if (!result) {
+    result = fetch(
+      `https://api.arasaac.org/api/pictograms/en/search/${encodeURIComponent(keyword)}`,
+    )
+      .then((response) => (response.ok ? response.json() : []))
+      .then((/** @type {{_id: number}[]} */ found) =>
+        found.map(
+          ({ _id }) => `https://static.arasaac.org/pictograms/${_id}/${_id}_300.png`,
+        ),
+      )
+      .catch(() => {
+        searches.delete(keyword); // retry next time
+        return [];
+      });
+    searches.set(keyword, result);
+  }
+  return result;
+}
+
+/** Words that never make a useful picture on their own */
+const fillerWords = new Set(
+  "a an the i me my you your it is are am be to of and or for in on at with please can do does want".split(" "),
+);
+
+/**
+ * Picture choices for each button label. When an AI service is set up it
+ * suggests what to search for ("bathroom please" → toilet, bathroom), so
+ * phrases find good symbols; without one, the label and its main words
+ * are searched. All pictures come from ARASAAC, which is free.
+ *
+ * @param {string[]} labels
+ * @param {number} [count] - choices per label
+ * @returns {Promise<{choices: Map<string, string[]>, usedAI: boolean}>}
+ */
+async function pictureChoices(labels, count = 6) {
+  /** @type {Map<string, string[]>} label → search keywords */
+  const keywords = new Map(
+    labels.map((label) => {
+      const words = label
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}']+/u)
+        .filter((word) => word && !fillerWords.has(word));
+      return [label, [label, ...words]];
+    }),
+  );
+
+  let usedAI = false;
+  if (labels.length && aiReady()) {
+    try {
+      const reply = await aiJSON({
+        prompt:
+          "These are buttons on an AAC communication board. For each label, " +
+          "give 1 to 3 short English search words that would find the best " +
+          "picture symbol for it in the ARASAAC pictogram library: concrete " +
+          "single words or two-word terms for the main meaning (for " +
+          '"bathroom please" give "toilet", "bathroom"; for "I am hungry" ' +
+          'give "hungry", "eat"). Reply with JSON only: ' +
+          '{"items": [{"label": "...", "keywords": ["..."]}]}\n\nLabels:\n' +
+          labels.map((label) => JSON.stringify(label)).join("\n"),
+        maxTokens: 400 + labels.length * 40,
+        effort: "low",
+      });
+      for (const item of reply?.items ?? []) {
+        const label = String(item?.label ?? "");
+        if (!keywords.has(label) || !Array.isArray(item.keywords)) continue;
+        const suggested = item.keywords.map(String).filter(Boolean).slice(0, 3);
+        // the AI's words first, then the label itself
+        keywords.set(label, [...suggested, ...(keywords.get(label) ?? [])]);
+        usedAI = true;
+      }
+    } catch {
+      // no AI today: the label's own words still find pictures
+    }
+  }
+
+  /** @param {string[]} terms */
+  const choicesFor = async (terms) => {
+    const unique = [...new Set(terms.map((term) => term.toLowerCase()))];
+    const found = await Promise.all(unique.slice(0, 4).map(searchPictograms));
+    // take turns between the search words so each gets a say
+    /** @type {string[]} */
+    const merged = [];
+    for (let i = 0; merged.length < count && found.some((list) => list[i]); i++) {
+      for (const list of found) {
+        if (list[i] && !merged.includes(list[i])) merged.push(list[i]);
+      }
+    }
+    return merged.slice(0, count);
+  };
+
+  /** @type {Map<string, string[]>} */
+  const choices = new Map();
+  const entries = [...keywords];
+  // a few words at a time, to be gentle on the free service
+  for (let i = 0; i < entries.length; i += 6) {
+    const batch = entries.slice(i, i + 6);
+    const results = await Promise.all(batch.map(([, terms]) => choicesFor(terms)));
+    batch.forEach(([label], j) => choices.set(label, results[j]));
+  }
+  return { choices, usedAI };
 }
 
 /**
@@ -17018,269 +17396,6 @@ class DesignerPanel extends TreeBase {
   }
 }
 
-class AIError extends Error {
-  /**
-   * @param {"no-key" | "auth" | "rate-limit" | "network" | "refused" | "bad-response" | "http"} kind
-   * @param {string} message
-   */
-  constructor(kind, message) {
-    super(message);
-    this.kind = kind;
-  }
-}
-const providers = /* @__PURE__ */ new Map();
-function registerAIProvider(provider) {
-  providers.set(provider.id, provider);
-}
-function aiProviders() {
-  return [...providers.values()];
-}
-const SETTINGS_KEY = "os-dpi-ai-settings";
-const LEGACY_GROQ_KEY = "os-dpi-groq-key";
-function readSettings() {
-  try {
-    return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {};
-  } catch {
-    return {};
-  }
-}
-function writeSettings(settings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-}
-function keyStorageName(id) {
-  return id === "groq" ? LEGACY_GROQ_KEY : `os-dpi-ai-key:${id}`;
-}
-function aiProvider() {
-  const id = readSettings().provider || "groq";
-  return providers.get(id) || /** @type {AIProvider} */
-  providers.get("groq");
-}
-function setAIProvider(id) {
-  if (!providers.has(id)) return;
-  writeSettings({ ...readSettings(), provider: id });
-}
-function getAIKey(id = aiProvider().id) {
-  const stored = (localStorage.getItem(keyStorageName(id)) || "").trim();
-  if (stored) return stored;
-  if (id === "groq") {
-    const env = "".trim();
-    if (env && env !== "your_groq_api_key_here") return env;
-  }
-  return "";
-}
-function setAIKey(key, id = aiProvider().id) {
-  key = key.trim();
-  if (key) localStorage.setItem(keyStorageName(id), key);
-  else localStorage.removeItem(keyStorageName(id));
-}
-function getAIModel(id = aiProvider().id) {
-  return readSettings().models?.[id] || providers.get(id)?.defaultModel || "";
-}
-function setAIModel(model, id = aiProvider().id) {
-  const settings = readSettings();
-  settings.models = { ...settings.models, [id]: model.trim() };
-  if (!model.trim()) delete settings.models[id];
-  writeSettings(settings);
-}
-function getAIBaseUrl(id = aiProvider().id) {
-  return readSettings().baseUrls?.[id] || providers.get(id)?.defaultBaseUrl || "";
-}
-function setAIBaseUrl(url, id = aiProvider().id) {
-  const settings = readSettings();
-  settings.baseUrls = { ...settings.baseUrls, [id]: url.trim() };
-  if (!url.trim()) delete settings.baseUrls[id];
-  writeSettings(settings);
-}
-function aiReady() {
-  const provider = aiProvider();
-  return provider.key !== "required" || !!getAIKey(provider.id);
-}
-function aiKeyPhrase() {
-  const provider = aiProvider();
-  return provider.id === "groq" ? "a free Groq API key" : `an API key for ${provider.name}`;
-}
-async function aiComplete(request) {
-  const provider = aiProvider();
-  const config = {
-    model: getAIModel(provider.id),
-    baseUrl: getAIBaseUrl(provider.id).replace(/\/+$/, ""),
-    key: getAIKey(provider.id)
-  };
-  if (provider.key === "required" && !config.key) {
-    throw new AIError("no-key", `${provider.name} needs an API key.`);
-  }
-  return provider.complete(config, request);
-}
-async function aiJSON(request) {
-  const text = await aiComplete({ ...request, json: true });
-  try {
-    return JSON.parse(text);
-  } catch {
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(text.slice(start, end + 1));
-      } catch {
-      }
-    }
-    throw new AIError("bad-response", "The AI reply was not valid JSON.");
-  }
-}
-async function openAICompatible(config, request, options = {}) {
-  const body = {
-    model: config.model,
-    messages: [{ role: "user", content: request.prompt }]
-  };
-  if (request.json) body.response_format = { type: "json_object" };
-  if (request.effort && /gpt-oss|^gpt-5|^o\d/.test(config.model)) {
-    body.reasoning_effort = request.effort;
-  }
-  if (request.maxTokens) {
-    body[options.maxTokensField || "max_tokens"] = request.maxTokens;
-  }
-  const headers = { "Content-Type": "application/json" };
-  if (config.key) headers.Authorization = `Bearer ${config.key}`;
-  let response;
-  try {
-    response = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      signal: request.signal
-    });
-  } catch (error) {
-    if (request.signal?.aborted) throw error;
-    throw new AIError(
-      "network",
-      `Couldn't reach ${config.baseUrl}. Check the address and your connection.`
-    );
-  }
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new AIError("auth", "The API key was rejected.");
-    }
-    if (response.status === 429) {
-      throw new AIError("rate-limit", "Rate limit reached.");
-    }
-    const err = await response.json().catch(() => ({}));
-    throw new AIError(
-      "http",
-      err.error?.message || `AI service error ${response.status}`
-    );
-  }
-  const data = await response.json();
-  const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new AIError("bad-response", "Empty reply from the AI.");
-  return text;
-}
-registerAIProvider({
-  id: "groq",
-  name: "Groq",
-  description: "Free key, fast cloud models. The default.",
-  defaultModel: "openai/gpt-oss-120b",
-  defaultBaseUrl: "https://api.groq.com/openai/v1",
-  key: "required",
-  keyUrl: "https://console.groq.com/keys",
-  keyPlaceholder: "gsk_…",
-  complete: (config, request) => openAICompatible(config, request)
-});
-registerAIProvider({
-  id: "openai",
-  name: "OpenAI",
-  description: "Paid key from platform.openai.com.",
-  defaultModel: "gpt-5-mini",
-  defaultBaseUrl: "https://api.openai.com/v1",
-  key: "required",
-  keyUrl: "https://platform.openai.com/api-keys",
-  keyPlaceholder: "sk-…",
-  complete: (config, request) => openAICompatible(config, request, {
-    maxTokensField: "max_completion_tokens"
-  })
-});
-registerAIProvider({
-  id: "anthropic",
-  name: "Anthropic (Claude)",
-  description: "Paid key from console.anthropic.com.",
-  defaultModel: "claude-opus-5",
-  key: "required",
-  keyUrl: "https://console.anthropic.com/settings/keys",
-  keyPlaceholder: "sk-ant-…",
-  complete: anthropicComplete
-});
-registerAIProvider({
-  id: "ollama",
-  name: "Ollama (on this computer)",
-  description: "Runs a model locally — private and works offline. Install Ollama and pull a model first.",
-  defaultModel: "llama3.2",
-  defaultBaseUrl: "http://localhost:11434/v1",
-  key: "none",
-  complete: (config, request) => openAICompatible(config, request)
-});
-registerAIProvider({
-  id: "custom",
-  name: "Other (OpenAI-compatible)",
-  description: "Any service with an OpenAI-style /chat/completions endpoint, e.g. LM Studio or OpenRouter.",
-  defaultModel: "",
-  defaultBaseUrl: "http://localhost:1234/v1",
-  key: "optional",
-  complete: (config, request) => openAICompatible(config, request)
-});
-async function anthropicComplete(config, request) {
-  const { default: Anthropic } = await __vitePreload(async () => { const { default: Anthropic } = await import('./index2.js').then(n => n.i);return { default: Anthropic }},true?[]:void 0);
-  const client = new Anthropic({
-    apiKey: config.key,
-    dangerouslyAllowBrowser: true,
-    maxRetries: 1
-  });
-  const content = request.json ? `${request.prompt}
-
-Respond with only the JSON object, no other text.` : request.prompt;
-  const params = {
-    model: config.model,
-    max_tokens: 16e3,
-    messages: [{ role: "user", content }]
-  };
-  if (request.effort && !/haiku/.test(config.model)) {
-    params.output_config = { effort: request.effort };
-  }
-  let message;
-  try {
-    if (/^claude-(opus-5$|fable-5)/.test(config.model)) {
-      message = await client.beta.messages.create(
-        {
-          ...params,
-          betas: ["server-side-fallback-2026-07-01"],
-          fallbacks: "default"
-        },
-        { signal: request.signal }
-      );
-    } else {
-      message = await client.messages.create(params, {
-        signal: request.signal
-      });
-    }
-  } catch (error) {
-    if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
-      throw new AIError("auth", "The API key was rejected.");
-    } else if (error instanceof Anthropic.RateLimitError) {
-      throw new AIError("rate-limit", "Rate limit reached.");
-    } else if (error instanceof Anthropic.APIConnectionError) {
-      if (request.signal?.aborted) throw error;
-      throw new AIError("network", "Couldn't reach Anthropic.");
-    } else if (error instanceof Anthropic.APIError) {
-      throw new AIError("http", error.message);
-    }
-    throw error;
-  }
-  if (message.stop_reason === "refusal") {
-    throw new AIError("refused", "The AI declined this request.");
-  }
-  const text = message.content.filter((block) => block.type === "text").map((block) => block.text).join("");
-  if (!text) throw new AIError("bad-response", "Empty reply from the AI.");
-  return text;
-}
-
 /** Whether the student opened or closed the panel; until they do, it
  * opens itself only when the service still needs setting up
  * @type {boolean | null} */
@@ -18753,6 +18868,133 @@ function separateGrids(newGrids) {
   }
 }
 
+/**
+ * The Layout tab's "Find pictures" view for one word grid: every word
+ * with a few matching symbols to pick from (pictograms.js), so a whole
+ * grid gets pictures in a few clicks.
+ */
+class PictureChooser {
+  /** @type {Map<string, string[]>} label → picture choices */
+  choices = new Map();
+  loading = true;
+  usedAI = false;
+
+  /**
+   * @param {import("./treebase").TreeBase} grid
+   * @param {() => void} close
+   */
+  constructor(grid, close) {
+    this.grid = grid;
+    this.close = close;
+    this.load();
+  }
+
+  /** The grid's own words (not predictions or notes), in board order */
+  rows() {
+    const { data } = Globals;
+    return data
+      .getMatchingRows(
+        /** @type {import("./gridFilter").GridFilter[]} */ (this.grid.children),
+        false,
+      )
+      .filter((row) => row.label && data.contentRows.includes(row));
+  }
+
+  async load() {
+    const labels = [...new Set(this.rows().map((row) => String(row.label)))];
+    const { choices, usedAI } = await pictureChoices(labels);
+    this.choices = choices;
+    this.usedAI = usedAI;
+    this.loading = false;
+    Globals.state.update();
+  }
+
+  /** Give a word this picture, or none
+   * @param {Row} row
+   * @param {string} symbol */
+  async choose(row, symbol) {
+    const { data } = Globals;
+    const rows = [...data.contentRows];
+    const index = rows.indexOf(row);
+    if (index < 0) return;
+    const { symbol: _old, ...rest } = row;
+    rows[index] = symbol ? { ...rest, symbol } : rest;
+    data.setContent(rows);
+    await db.write("content", rows);
+    Globals.state.update();
+  }
+
+  template() {
+    const rows = this.rows();
+    let status;
+    if (!rows.length) {
+      status = html`<p class="piece-hint">
+        This grid has no words yet. Type some on the board first.
+      </p>`;
+    } else if (this.loading) {
+      status = html`<p class="piece-hint" aria-live="polite">
+        ${aiReady() ? "Asking the AI and finding pictures…" : "Finding pictures…"}
+      </p>`;
+    } else if (this.usedAI) {
+      status = html`<p class="piece-hint">
+        The AI chose what to look for; the pictures are free ARASAAC symbols.
+      </p>`;
+    } else {
+      status = html`<p class="piece-hint">
+        Matched by the words themselves. Set up an AI service (Content tab →
+        Generate with AI) for smarter matches on phrases.
+      </p>`;
+    }
+
+    return html`<div class="piece-inspector picture-chooser">
+      <div class="piece-title">
+        <h3>✨ Pictures for this grid</h3>
+        <button class="piece-done" @click=${this.close}>Back</button>
+      </div>
+      <p class="piece-hint">Click a picture to use it for that word.</p>
+      ${status}
+      <ul class="picture-list">
+        ${rows.map((row) => {
+          const options = this.choices.get(String(row.label)) ?? [];
+          const current = String(row.symbol ?? "");
+          return html`<li>
+            <div class="picture-word">
+              <span class="picture-current">
+                ${current ? imageOrVideo(current, String(row.label)) : html`<span>—</span>`}
+              </span>
+              <strong>${row.label}</strong>
+            </div>
+            <div class="picture-options">
+              ${options.map(
+                (url) => html`<button
+                  class=${url === current ? "picture-option chosen" : "picture-option"}
+                  aria-pressed=${url === current}
+                  title=${`Use this picture for “${row.label}”`}
+                  @click=${() => this.choose(row, url)}
+                >
+                  <img src=${url} alt="" loading="lazy" />
+                </button>`,
+              )}
+              ${current
+                ? html`<button
+                    class="picture-option picture-none"
+                    title="No picture"
+                    @click=${() => this.choose(row, "")}
+                  >
+                    None
+                  </button>`
+                : html``}
+              ${!this.loading && !options.length
+                ? html`<span class="piece-hint">No match found</span>`
+                : html``}
+            </div>
+          </li>`;
+        })}
+      </ul>
+    </div>`;
+  }
+}
+
 // map old names to new for the transition
 const typeToClassName = {
   audio: "Audio",
@@ -18794,6 +19036,10 @@ class Layout extends DesignerPanel {
   /** Whether the full component tree is showing */
   _showTree = false;
 
+  /** The "Find pictures" view, while it is open
+   * @type {PictureChooser | null} */
+  _pictures = null;
+
   /** The selected piece, if it is still on the board */
   get selected() {
     const selected = this._selected;
@@ -18808,6 +19054,7 @@ class Layout extends DesignerPanel {
     if (component === this.selected) return;
     this._selected = component;
     this._adding = null;
+    this._pictures = null;
     // show the Layout tab, without moving focus off the board (a click
     // on an empty square there opens a text box)
     const designer = Globals.designer;
@@ -18885,7 +19132,9 @@ class Layout extends DesignerPanel {
     ></style>`;
 
     let body;
-    if (this._adding) {
+    if (this._pictures && selected === this._pictures.grid) {
+      body = this._pictures.template();
+    } else if (this._adding) {
       body = this.addMenu();
     } else if (selected) {
       body = this.inspector(selected);
@@ -18893,10 +19142,9 @@ class Layout extends DesignerPanel {
       this._adding = { anchor: null, side: "below" };
       body = this.addMenu();
     } else {
-      body = html`<p class="piece-hint">
-          Click a piece on the board to change it, or click an empty
-          square in a word grid to add a word.
-        </p>
+      const hasGrid = hasWordGrid(page);
+      body = html`${hasGrid ? howToFill() : html``}
+        <p class="piece-hint">Click a piece on the board to change it.</p>
         <button
           class="piece-action"
           @click=${() => {
@@ -19062,7 +19310,19 @@ class Layout extends DesignerPanel {
     switch (piece.className) {
       case "Grid": {
         const fill = piece["fillItems"];
-        return html`${number("Rows", piece["rows"], 1, 12)}
+        const findPictures = html`<button
+          class="piece-action piece-ai"
+          @click=${() => {
+            this._pictures = new PictureChooser(piece, () => {
+              this._pictures = null;
+              Globals.state.update();
+            });
+            Globals.state.update();
+          }}
+        >
+          ✨ Let AI pick pictures
+        </button>`;
+        return html`${howToFill(findPictures)} ${number("Rows", piece["rows"], 1, 12)}
           ${number("Columns", piece["columns"], 1, 12)}
           <fieldset class="piece-field">
             <legend>Words go</legend>
@@ -19090,12 +19350,7 @@ class Layout extends DesignerPanel {
               />
               in the square I click</label
             >
-          </fieldset>
-          <p class="piece-hint">
-            Click a square on the board to type a word (Enter goes on to the
-            next square, or paste a list). Double-click a square to choose a
-            picture from your computer.
-          </p>`;
+          </fieldset>`;
       }
       case "Display": {
         const size = piece["fontSize"];
@@ -19331,6 +19586,32 @@ class Layout extends DesignerPanel {
   }
 }
 TreeBase.register(Layout, "Layout");
+
+/** @param {TreeBase} node @returns {boolean} */
+function hasWordGrid(node) {
+  return (
+    (node.className === "Grid" && node["name"]?.value !== "suggestions") ||
+    node.children.some(hasWordGrid)
+  );
+}
+
+/** How to put words and pictures into a word grid, shown prominently
+ * @param {Hole} [extra] - shown at the end, e.g. the Find pictures button */
+function howToFill(extra = html``) {
+  return html`<div class="piece-howto" role="note">
+    <strong>Fill the grid on the board:</strong>
+    <div class="howto-row">
+      <span class="howto-gesture">Click</span>
+      <span>a square to type a word</span>
+    </div>
+    <div class="howto-row">
+      <span class="howto-gesture">Double-click</span>
+      <span>a square to add a picture</span>
+    </div>
+    <small>Enter moves on to the next square. Paste a list to fill many.</small>
+    ${extra}
+  </div>`;
+}
 
 // In the designer, clicking a piece on the board selects it for the
 // Layout tab (capture phase, before the piece handles the click itself)
