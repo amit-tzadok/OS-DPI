@@ -6,6 +6,7 @@ import { styleString } from "./style";
 import { formatSlottedString } from "./slots";
 import Globals from "app/globals";
 import db from "app/db";
+import { findPictogram, isPictogram } from "./pictograms";
 import "css/grid.css";
 
 /**
@@ -78,32 +79,138 @@ class Grid extends TreeBase {
     Globals.state.update();
   }
 
+  /** Empty cells on the page last drawn, in reading order, so typing can
+   * move on to the next one
+   * @type {[number, number][]} */
+  _emptyCells = [];
+
+  /** The rows and columns last drawn */
+  _shape = { rows: 1, columns: 1 };
+
   /** Save what was typed: a new word becomes a button, a renamed button
-   * keeps its picture, and clearing the text removes the button */
-  async finishEditing() {
+   * keeps its picture, and clearing the text removes the button. After
+   * Enter on a new word the next empty cell opens, so a list of words can
+   * be typed in one go.
+   * @param {boolean} [keepTyping]
+   */
+  async finishEditing(keepTyping = false) {
     const edit = this._editCell;
     if (!edit) return;
     this._editCell = null;
-    const { data } = Globals;
     const label = edit.text.trim();
-    const rows = [...data.contentRows];
 
-    if (edit.absIdx >= 0) {
-      const target = data.getMatchingRows(this.children, false)[edit.absIdx];
-      const index = rows.indexOf(target);
-      // predicted words and notes aren't board content; leave them be
-      if (index < 0 || label === String(target.label ?? "")) {
+    if (edit.absIdx < 0) {
+      if (label) {
+        await this.addWords([label], edit.row, edit.column, keepTyping);
+      } else {
         Globals.state.update();
-        return;
       }
-      if (label) rows[index] = { ...target, label };
-      else rows.splice(index, 1);
-    } else if (label) {
-      rows.push(this.newRow(label, edit.row, edit.column));
-    } else {
+      return;
+    }
+
+    const { data } = Globals;
+    const rows = [...data.contentRows];
+    const target = data.getMatchingRows(this.children, false)[edit.absIdx];
+    const index = rows.indexOf(target);
+    // predicted words and notes aren't board content; leave them be
+    if (index < 0 || label === String(target.label ?? "")) {
       Globals.state.update();
       return;
     }
+    /** @type {Row[]} */
+    const changed = [];
+    if (label) {
+      rows[index] = { ...target, label };
+      // a picture found for the old word is wrong for the new one; one
+      // the student chose stays
+      if (!target.symbol || isPictogram(String(target.symbol))) {
+        changed.push(rows[index]);
+      }
+    } else {
+      rows.splice(index, 1);
+    }
+    data.setContent(rows);
+    await db.write("content", rows);
+    Globals.state.update();
+    this.addPictures(changed);
+  }
+
+  /** Add words as buttons, starting at the cell that was clicked and going
+   * on through the empty cells after it
+   * @param {string[]} labels
+   * @param {number} row
+   * @param {number} column
+   * @param {boolean} keepTyping - open the next empty cell afterwards
+   */
+  async addWords(labels, row, column, keepTyping) {
+    const { data } = Globals;
+    const empties = this._emptyCells;
+    // buttons fill in order: new words take the first empty cells
+    let start = 0;
+    if (!this.fillItems.value) {
+      // placed by position: start at the clicked cell
+      start = Math.max(
+        0,
+        empties.findIndex(([r, c]) => r === row && c === column),
+      );
+    }
+    /** @type {number[][]} */
+    const positions = empties.slice(start, start + labels.length);
+    // past the end of this page, positioned words go on new pages
+    let page = Math.max(
+      this.page,
+      ...data.getMatchingRows(this.children, false).map((r) => +(r.page || 1)),
+    );
+    const { rows: height, columns: width } = this._shape;
+    for (let i = 0; positions.length < labels.length; i++) {
+      if (i % (height * width) === 0) page++;
+      const cell = i % (height * width);
+      positions.push([Math.floor(cell / width) + 1, (cell % width) + 1, page]);
+    }
+
+    const added = labels.map((label, i) => {
+      const [r, c, p = this.page] = positions[i];
+      return this.newRow(label, r, c, p);
+    });
+    const rows = [...data.contentRows, ...added];
+    data.setContent(rows);
+    await db.write("content", rows);
+
+    const next = empties[start + labels.length];
+    if (keepTyping && next) {
+      this._editCell = {
+        key: `${next[0]},${next[1]}`,
+        absIdx: -1,
+        row: next[0],
+        column: next[1],
+        text: "",
+      };
+    }
+    Globals.state.update();
+    this.addPictures(added);
+  }
+
+  /** Give buttons a matching picture, without holding up typing; a
+   * button that has changed since (or no picture found) is left alone
+   * @param {Row[]} added
+   */
+  async addPictures(added) {
+    if (!added.length) return;
+    const symbols = await Promise.all(
+      added.map((row) => findPictogram(String(row.label))),
+    );
+    const { data } = Globals;
+    const rows = [...data.contentRows];
+    let changed = false;
+    added.forEach((row, i) => {
+      const index = rows.indexOf(row);
+      if (index < 0 || symbols[i] === (row.symbol ?? "")) return;
+      if (!symbols[i] && !row.symbol) return;
+      const { symbol, ...rest } = row;
+      rows[index] = symbols[i] ? { ...rest, symbol: symbols[i] } : rest;
+      changed = true;
+    });
+    if (!changed) return;
     data.setContent(rows);
     await db.write("content", rows);
     Globals.state.update();
@@ -115,9 +222,10 @@ class Grid extends TreeBase {
    * @param {string} label
    * @param {number} row
    * @param {number} column
+   * @param {number} page
    * @returns {Row}
    */
-  newRow(label, row, column) {
+  newRow(label, row, column, page) {
     /** @type {Row} */
     const result = { label, sheetName: "sheet1" };
     for (const filter of this.children) {
@@ -130,7 +238,7 @@ class Grid extends TreeBase {
     }
     if (!this.fillItems.value) {
       Object.assign(result, { row, column });
-      if (this.page > 1) result.page = this.page;
+      if (page > 1) result.page = page;
     }
     return result;
   }
@@ -142,6 +250,9 @@ class Grid extends TreeBase {
       <input
         aria-label="Word for this button"
         placeholder="Type a word"
+        title=${edit.absIdx < 0
+          ? "Enter adds the word and moves to the next cell; Escape stops. Paste a list (one per line) to fill several cells."
+          : null}
         .value=${edit.text}
         ref=${(/** @type {HTMLInputElement | null} */ el) => {
           if (el && document.activeElement !== el) {
@@ -154,11 +265,23 @@ class Grid extends TreeBase {
         @input=${(/** @type {InputEvent} */ e) => {
           edit.text = /** @type {HTMLInputElement} */ (e.target).value;
         }}
+        @paste=${(/** @type {ClipboardEvent} */ e) => {
+          // a pasted list (one word per line) fills a cell per word
+          if (edit.absIdx >= 0) return;
+          const words = (e.clipboardData?.getData("text") ?? "")
+            .split(/[\r\n\t]+/)
+            .map((word) => word.trim())
+            .filter(Boolean);
+          if (words.length < 2) return;
+          e.preventDefault();
+          this._editCell = null;
+          this.addWords(words, edit.row, edit.column, true);
+        }}
         @keydown=${(/** @type {KeyboardEvent} */ e) => {
           e.stopPropagation();
           if (e.key === "Enter") {
             e.preventDefault();
-            this.finishEditing();
+            this.finishEditing(true);
           } else if (e.key === "Escape") {
             this._editCell = null;
             Globals.state.update();
@@ -375,6 +498,7 @@ class Grid extends TreeBase {
 
   /** @param {number} row @param {number} column */
   emptyCell(row, column) {
+    this._emptyCells.push([row, column]);
     if (this._editCell?.key === `${row},${column}`) return this.cellEditor();
     const self = this;
     // clickable in the designer (to add a word); inert on the board
@@ -469,6 +593,7 @@ class Grid extends TreeBase {
     let rows = Math.max(1, this.rows.value);
     let columns = Math.max(1, this.columns.value);
     let fillItems = this.fillItems.value;
+    this._emptyCells = [];
 
     // Tag every item with its absolute index before pagination so drag-and-drop
     // can identify which source rows to swap.
@@ -561,6 +686,7 @@ class Grid extends TreeBase {
       result.push(this.emptyCell(1, 1));
     }
 
+    this._shape = { rows, columns };
     style.gridTemplate = `repeat(${rows}, calc(100% / ${rows})) / repeat(${columns}, 1fr)`;
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;

@@ -4,6 +4,7 @@ import db from "app/db";
 import { TreeBase } from "./treebase";
 import { speakSync, preferredVoice } from "./speech";
 import { aiJSON, aiReady, aiKeyPhrase, aiProvider, AIError } from "./ai";
+import { findPictogram } from "./pictograms";
 import "css/speechSuggestions.css";
 
 /**
@@ -108,13 +109,6 @@ export class SpeechSuggestions {
    * not refetched, so settled suggestions don't get shuffled under the
    * user's finger */
   _lastSignature = "";
-
-  /**
-   * keyword → ARASAAC pictogram URL ("" when no match) so repeated
-   * concepts never refetch
-   * @type {Map<string, string>}
-   */
-  _symbolCache = new Map();
 
   /** True after a first tap on the Reset board button; a second tap
    * within 4 s actually clears the board */
@@ -474,7 +468,7 @@ export class SpeechSuggestions {
 
       // look up a pictogram for each suggestion (cached per keyword)
       const symbols = await Promise.all(
-        items.map((/** @type {{keyword: string}} */ s) => this._findPictogram(s.keyword)),
+        items.map((/** @type {{keyword: string}} */ s) => findPictogram(s.keyword)),
       );
 
       // a newer fetch started (or listening stopped) while we waited
@@ -571,38 +565,6 @@ export class SpeechSuggestions {
     }
 
     Globals.state?.update();
-  }
-
-  /**
-   * Find an ARASAAC pictogram URL for a keyword. Returns "" when the
-   * keyword is empty or has no match. Results (including misses) are
-   * cached so the same concept is only looked up once per session.
-   * @param {string} keyword
-   * @returns {Promise<string>}
-   */
-  async _findPictogram(keyword) {
-    keyword = keyword.trim().toLowerCase();
-    if (!keyword) return "";
-    const cached = this._symbolCache.get(keyword);
-    if (cached !== undefined) return cached;
-
-    let url = "";
-    try {
-      const response = await fetch(
-        `https://api.arasaac.org/api/pictograms/en/bestsearch/${encodeURIComponent(keyword)}`,
-      );
-      if (response.ok) {
-        const results = await response.json();
-        const id = results?.[0]?._id;
-        if (id) {
-          url = `https://static.arasaac.org/pictograms/${id}/${id}_300.png`;
-        }
-      }
-    } catch {
-      // no image for this button — the label alone still works
-    }
-    this._symbolCache.set(keyword, url);
-    return url;
   }
 
   /**
