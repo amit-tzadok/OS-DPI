@@ -1274,7 +1274,7 @@ const detail = (u, t, n, c) => ({ v: empty, u, t, n, c });
 /**
  * @returns {Cache}
  */
-const cache$1 = () => abc(null, null, empty);
+const cache$2 = () => abc(null, null, empty);
 
 /** @param {(template: TemplateStringsArray, values: any[]) => import("./parser.js").Resolved} parse */
 const create = parse => (
@@ -1297,7 +1297,7 @@ const create = parse => (
           update,
           node,
           name,
-          update === array ? [] : (update === hole ? cache$1() : null)
+          update === array ? [] : (update === hole ? cache$2() : null)
         );
       }
     }
@@ -1471,18 +1471,18 @@ const resolve = (template, values, xml) => {
     len = 0;
   }
 
-  return set(cache, template, abc(content, entries, len === 1));
+  return set(cache$1, template, abc(content, entries, len === 1));
 };
 
 /** @type {WeakMap<TemplateStringsArray, Resolved>} */
-const cache = new WeakMap;
+const cache$1 = new WeakMap;
 const prefix = 'isµ';
 
 /**
  * @param {boolean} xml
  * @returns {(template: TemplateStringsArray, values: any[]) => Resolved}
  */
-const parser = xml => (template, values) => cache.get(template) || resolve(template, values, xml);
+const parser = xml => (template, values) => cache$1.get(template) || resolve(template, values, xml);
 
 const createHTML = create(parser(false));
 const createSVG = create(parser(true));
@@ -1512,7 +1512,7 @@ const unroll = (info, { s, t, v }) => {
         break;
       case hole:
         const current = value instanceof Hole ?
-          unroll(detail.c || (detail.c = cache$1()), value) :
+          unroll(detail.c || (detail.c = cache$2()), value) :
           (detail.c = null, value)
         ;
         if (current !== detail.v)
@@ -1538,7 +1538,7 @@ const unrollValues = (stack, values) => {
   for (; i < length; i++) {
     const value = values[i];
     if (value instanceof Hole)
-      values[i] = unroll(stack[i] || (stack[i] = cache$1()), value);
+      values[i] = unroll(stack[i] || (stack[i] = cache$2()), value);
     else stack[i] = null;
   }
   return values;
@@ -1557,7 +1557,7 @@ class Hole {
     this.t = template;
     this.v = values;
   }
-  toDOM(info = cache$1()) {
+  toDOM(info = cache$2()) {
     return unroll(info, this);
   }
 }
@@ -1575,7 +1575,7 @@ const known = new WeakMap;
  * @returns
  */
 const render = (where, what) => {
-  const info = known.get(where) || set(known, where, cache$1());
+  const info = known.get(where) || set(known, where, cache$2());
   const { b } = info;
   if (b !== (typeof what === 'function' ? what() : what).toDOM(info))
     where.replaceChildren(info.b.valueOf());
@@ -7784,7 +7784,7 @@ function promisifyRequest(request) {
             request.removeEventListener('error', error);
         };
         const success = () => {
-            resolve(wrap(request.result));
+            resolve(wrap$1(request.result));
             unlisten();
         };
         const error = () => {
@@ -7838,7 +7838,7 @@ let idbProxyTraps = {
             }
         }
         // Else transform whatever we get back.
-        return wrap(target[prop]);
+        return wrap$1(target[prop]);
     },
     set(target, prop, value) {
         target[prop] = value;
@@ -7868,13 +7868,13 @@ function wrapFunction(func) {
             // Calling the original function with the proxy as 'this' causes ILLEGAL INVOCATION, so we use
             // the original object.
             func.apply(unwrap(this), args);
-            return wrap(this.request);
+            return wrap$1(this.request);
         };
     }
     return function (...args) {
         // Calling the original function with the proxy as 'this' causes ILLEGAL INVOCATION, so we use
         // the original object.
-        return wrap(func.apply(unwrap(this), args));
+        return wrap$1(func.apply(unwrap(this), args));
     };
 }
 function transformCachableValue(value) {
@@ -7889,7 +7889,7 @@ function transformCachableValue(value) {
     // Return the same value back if we're not going to transform it.
     return value;
 }
-function wrap(value) {
+function wrap$1(value) {
     // We sometimes generate multiple promises from a single IDBRequest (eg when cursoring), because
     // IDB is weird and a single IDBRequest can yield many responses, so these can't be cached.
     if (value instanceof IDBRequest)
@@ -7918,10 +7918,10 @@ const unwrap = (value) => reverseTransformCache.get(value);
  */
 function openDB(name, version, { blocked, upgrade, blocking, terminated } = {}) {
     const request = indexedDB.open(name, version);
-    const openPromise = wrap(request);
+    const openPromise = wrap$1(request);
     if (upgrade) {
         request.addEventListener('upgradeneeded', (event) => {
-            upgrade(wrap(request.result), event.oldVersion, event.newVersion, wrap(request.transaction), event);
+            upgrade(wrap$1(request.result), event.oldVersion, event.newVersion, wrap$1(request.transaction), event);
         });
     }
     if (blocked) {
@@ -13038,6 +13038,55 @@ let State$1 = class State {
   }
 };
 
+/**
+ * Let the bar between two pieces be dragged to share the room between
+ * them differently (designer only). Their scales change but keep their
+ * total, so the rest of the row or column stays put.
+ * @param {PointerEvent} event
+ * @param {StackContainer} container
+ * @param {TreeBase} before
+ * @param {TreeBase} after
+ */
+function startResize(event, container, before, after) {
+  if (!event.isPrimary) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const element = document.getElementById(container.id);
+  if (!element) return;
+  const horizontal = container.direction.value == "row";
+  const length = horizontal ? element.clientWidth : element.clientHeight;
+  const total = container.children.reduce(
+    (sum, child) => sum + Math.max(0, +child["scale"]?.value || 0),
+    0,
+  );
+  const a = +before["scale"].value;
+  const b = +after["scale"].value;
+  const start = horizontal ? event.clientX : event.clientY;
+  const handle = /** @type {HTMLElement} */ (event.currentTarget);
+  handle.setPointerCapture(event.pointerId);
+  handle.classList.add("dragging");
+  // neither piece shrinks away to nothing
+  const least = (a + b) * 0.1;
+
+  const move = (/** @type {PointerEvent} */ e) => {
+    const moved = ((horizontal ? e.clientX : e.clientY) - start) / length;
+    const shift = Math.min(b - least, Math.max(least - a, moved * total));
+    before["scale"].set(Math.round((a + shift) * 100) / 100);
+    after["scale"].set(Math.round((b - shift) * 100) / 100);
+    Globals.state.update();
+  };
+  const end = () => {
+    handle.classList.remove("dragging");
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("pointerup", end);
+    handle.removeEventListener("pointercancel", end);
+    container.update(); // save, with undo
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+}
+
 class StackContainer extends TreeBase {
   direction = new Select(["row", "column"], {
     defaultValue: "column",
@@ -13166,6 +13215,7 @@ class StackContainer extends TreeBase {
     const empty = this.children.length && scaleSum ? "" : "empty";
     const direction = this.direction.value;
     const dimension = direction == "row" ? "width" : "height";
+    const editing = !!Globals.state?.get("editing");
 
     return this.component(
       {
@@ -13174,16 +13224,31 @@ class StackContainer extends TreeBase {
           backgroundColor: this.background.value,
         },
       },
-      this.children.map((child) => {
+      this.children.map((child, index) => {
         let size = (100 * getScale(child)) / scaleSum;
         if (Number.isNaN(size)) size = 0;
+
+        // in the designer, a bar to drag between this piece and the next
+        // one that has room (pieces sized 0 are hidden)
+        const next = this.children
+          .slice(index + 1)
+          .find((other) => getScale(other) > 0);
+        const handle =
+          editing && next && getScale(child) > 0
+            ? html`<div
+                class="resize-handle"
+                title="Drag to resize"
+                @pointerdown=${(/** @type {PointerEvent} */ e) =>
+                  startResize(e, this, child, next)}
+              ></div>`
+            : html``;
 
         return html`<div
           style=${styleString({
             [dimension]: `${size}%`,
           })}
         >
-          ${child.safeTemplate()}
+          ${child.safeTemplate()}${handle}
         </div>`;
       }),
     );
@@ -13461,6 +13526,53 @@ function slotName(message) {
 }
 
 /**
+ * keyword → ARASAAC pictogram URL ("" when no match) so repeated concepts
+ * are only looked up once per session
+ * @type {Map<string, string>}
+ */
+const cache = new Map();
+
+/**
+ * Find an ARASAAC pictogram URL for a keyword. Returns "" when the keyword
+ * is empty, has no match, or the lookup fails (e.g. offline). ARASAAC is
+ * free and needs no key.
+ * @param {string} keyword
+ * @returns {Promise<string>}
+ */
+async function findPictogram(keyword) {
+  keyword = keyword.trim().toLowerCase();
+  if (!keyword) return "";
+  const cached = cache.get(keyword);
+  if (cached !== undefined) return cached;
+
+  let url = "";
+  try {
+    const response = await fetch(
+      `https://api.arasaac.org/api/pictograms/en/bestsearch/${encodeURIComponent(keyword)}`,
+    );
+    if (response.ok) {
+      const results = await response.json();
+      const id = results?.[0]?._id;
+      if (id) {
+        url = `https://static.arasaac.org/pictograms/${id}/${id}_300.png`;
+      }
+    }
+  } catch {
+    // no image for this button — the label alone still works
+    return "";
+  }
+  cache.set(keyword, url);
+  return url;
+}
+
+/** True for a picture this module chose (so renaming may replace it) and
+ * not one the student added themselves
+ * @param {string | undefined} symbol */
+function isPictogram(symbol) {
+  return !!symbol && symbol.startsWith("https://static.arasaac.org/");
+}
+
+/**
  * Return an image or video element given the name + parameters
  * like "foo.mp4 autoplay loop".
  * @param {string} src
@@ -13530,32 +13642,138 @@ class Grid extends TreeBase {
     Globals.state.update();
   }
 
+  /** Empty cells on the page last drawn, in reading order, so typing can
+   * move on to the next one
+   * @type {[number, number][]} */
+  _emptyCells = [];
+
+  /** The rows and columns last drawn */
+  _shape = { rows: 1, columns: 1 };
+
   /** Save what was typed: a new word becomes a button, a renamed button
-   * keeps its picture, and clearing the text removes the button */
-  async finishEditing() {
+   * keeps its picture, and clearing the text removes the button. After
+   * Enter on a new word the next empty cell opens, so a list of words can
+   * be typed in one go.
+   * @param {boolean} [keepTyping]
+   */
+  async finishEditing(keepTyping = false) {
     const edit = this._editCell;
     if (!edit) return;
     this._editCell = null;
-    const { data } = Globals;
     const label = edit.text.trim();
-    const rows = [...data.contentRows];
 
-    if (edit.absIdx >= 0) {
-      const target = data.getMatchingRows(this.children, false)[edit.absIdx];
-      const index = rows.indexOf(target);
-      // predicted words and notes aren't board content; leave them be
-      if (index < 0 || label === String(target.label ?? "")) {
+    if (edit.absIdx < 0) {
+      if (label) {
+        await this.addWords([label], edit.row, edit.column, keepTyping);
+      } else {
         Globals.state.update();
-        return;
       }
-      if (label) rows[index] = { ...target, label };
-      else rows.splice(index, 1);
-    } else if (label) {
-      rows.push(this.newRow(label, edit.row, edit.column));
-    } else {
+      return;
+    }
+
+    const { data } = Globals;
+    const rows = [...data.contentRows];
+    const target = data.getMatchingRows(this.children, false)[edit.absIdx];
+    const index = rows.indexOf(target);
+    // predicted words and notes aren't board content; leave them be
+    if (index < 0 || label === String(target.label ?? "")) {
       Globals.state.update();
       return;
     }
+    /** @type {Row[]} */
+    const changed = [];
+    if (label) {
+      rows[index] = { ...target, label };
+      // a picture found for the old word is wrong for the new one; one
+      // the student chose stays
+      if (!target.symbol || isPictogram(String(target.symbol))) {
+        changed.push(rows[index]);
+      }
+    } else {
+      rows.splice(index, 1);
+    }
+    data.setContent(rows);
+    await db.write("content", rows);
+    Globals.state.update();
+    this.addPictures(changed);
+  }
+
+  /** Add words as buttons, starting at the cell that was clicked and going
+   * on through the empty cells after it
+   * @param {string[]} labels
+   * @param {number} row
+   * @param {number} column
+   * @param {boolean} keepTyping - open the next empty cell afterwards
+   */
+  async addWords(labels, row, column, keepTyping) {
+    const { data } = Globals;
+    const empties = this._emptyCells;
+    // buttons fill in order: new words take the first empty cells
+    let start = 0;
+    if (!this.fillItems.value) {
+      // placed by position: start at the clicked cell
+      start = Math.max(
+        0,
+        empties.findIndex(([r, c]) => r === row && c === column),
+      );
+    }
+    /** @type {number[][]} */
+    const positions = empties.slice(start, start + labels.length);
+    // past the end of this page, positioned words go on new pages
+    let page = Math.max(
+      this.page,
+      ...data.getMatchingRows(this.children, false).map((r) => +(r.page || 1)),
+    );
+    const { rows: height, columns: width } = this._shape;
+    for (let i = 0; positions.length < labels.length; i++) {
+      if (i % (height * width) === 0) page++;
+      const cell = i % (height * width);
+      positions.push([Math.floor(cell / width) + 1, (cell % width) + 1, page]);
+    }
+
+    const added = labels.map((label, i) => {
+      const [r, c, p = this.page] = positions[i];
+      return this.newRow(label, r, c, p);
+    });
+    const rows = [...data.contentRows, ...added];
+    data.setContent(rows);
+    await db.write("content", rows);
+
+    const next = empties[start + labels.length];
+    if (keepTyping && next) {
+      this._editCell = {
+        key: `${next[0]},${next[1]}`,
+        absIdx: -1,
+        row: next[0],
+        column: next[1],
+        text: "",
+      };
+    }
+    Globals.state.update();
+    this.addPictures(added);
+  }
+
+  /** Give buttons a matching picture, without holding up typing; a
+   * button that has changed since (or no picture found) is left alone
+   * @param {Row[]} added
+   */
+  async addPictures(added) {
+    if (!added.length) return;
+    const symbols = await Promise.all(
+      added.map((row) => findPictogram(String(row.label))),
+    );
+    const { data } = Globals;
+    const rows = [...data.contentRows];
+    let changed = false;
+    added.forEach((row, i) => {
+      const index = rows.indexOf(row);
+      if (index < 0 || symbols[i] === (row.symbol ?? "")) return;
+      if (!symbols[i] && !row.symbol) return;
+      const { symbol, ...rest } = row;
+      rows[index] = symbols[i] ? { ...rest, symbol: symbols[i] } : rest;
+      changed = true;
+    });
+    if (!changed) return;
     data.setContent(rows);
     await db.write("content", rows);
     Globals.state.update();
@@ -13567,9 +13785,10 @@ class Grid extends TreeBase {
    * @param {string} label
    * @param {number} row
    * @param {number} column
+   * @param {number} page
    * @returns {Row}
    */
-  newRow(label, row, column) {
+  newRow(label, row, column, page) {
     /** @type {Row} */
     const result = { label, sheetName: "sheet1" };
     for (const filter of this.children) {
@@ -13582,7 +13801,7 @@ class Grid extends TreeBase {
     }
     if (!this.fillItems.value) {
       Object.assign(result, { row, column });
-      if (this.page > 1) result.page = this.page;
+      if (page > 1) result.page = page;
     }
     return result;
   }
@@ -13594,6 +13813,9 @@ class Grid extends TreeBase {
       <input
         aria-label="Word for this button"
         placeholder="Type a word"
+        title=${edit.absIdx < 0
+          ? "Enter adds the word and moves to the next cell; Escape stops. Paste a list (one per line) to fill several cells."
+          : null}
         .value=${edit.text}
         ref=${(/** @type {HTMLInputElement | null} */ el) => {
           if (el && document.activeElement !== el) {
@@ -13606,11 +13828,23 @@ class Grid extends TreeBase {
         @input=${(/** @type {InputEvent} */ e) => {
           edit.text = /** @type {HTMLInputElement} */ (e.target).value;
         }}
+        @paste=${(/** @type {ClipboardEvent} */ e) => {
+          // a pasted list (one word per line) fills a cell per word
+          if (edit.absIdx >= 0) return;
+          const words = (e.clipboardData?.getData("text") ?? "")
+            .split(/[\r\n\t]+/)
+            .map((word) => word.trim())
+            .filter(Boolean);
+          if (words.length < 2) return;
+          e.preventDefault();
+          this._editCell = null;
+          this.addWords(words, edit.row, edit.column, true);
+        }}
         @keydown=${(/** @type {KeyboardEvent} */ e) => {
           e.stopPropagation();
           if (e.key === "Enter") {
             e.preventDefault();
-            this.finishEditing();
+            this.finishEditing(true);
           } else if (e.key === "Escape") {
             this._editCell = null;
             Globals.state.update();
@@ -13827,6 +14061,7 @@ class Grid extends TreeBase {
 
   /** @param {number} row @param {number} column */
   emptyCell(row, column) {
+    this._emptyCells.push([row, column]);
     if (this._editCell?.key === `${row},${column}`) return this.cellEditor();
     const self = this;
     // clickable in the designer (to add a word); inert on the board
@@ -13921,6 +14156,7 @@ class Grid extends TreeBase {
     let rows = Math.max(1, this.rows.value);
     let columns = Math.max(1, this.columns.value);
     let fillItems = this.fillItems.value;
+    this._emptyCells = [];
 
     // Tag every item with its absolute index before pagination so drag-and-drop
     // can identify which source rows to swap.
@@ -14013,6 +14249,7 @@ class Grid extends TreeBase {
       result.push(this.emptyCell(1, 1));
     }
 
+    this._shape = { rows, columns };
     style.gridTemplate = `repeat(${rows}, calc(100% / ${rows})) / repeat(${columns}, 1fr)`;
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;
@@ -17160,7 +17397,7 @@ function gridDims(count) {
  * @param {string} scale
  * @param {{field: string, operator: string, value: string}[]} filters
  */
-function gridSpec(count, scale, filters = []) {
+function gridSpec$1(count, scale, filters = []) {
   const { rows, columns } = gridDims(count);
   return {
     className: "Grid",
@@ -17279,7 +17516,7 @@ class Content extends DesignerPanel {
           className: "TabPanel",
           props: { name: cat, label: cat, background: "" },
           children: [
-            gridSpec(count, "1", [
+            gridSpec$1(count, "1", [
               { field: "#category", operator: "equals", value: `'${cat}'` },
             ]),
           ],
@@ -17311,7 +17548,7 @@ class Content extends DesignerPanel {
         display,
         suggestionStrip,
         radio,
-        gridSpec(maxCount, "3.5", [
+        gridSpec$1(maxCount, "3.5", [
           { field: "#category", operator: "equals", value: "$category" },
         ]),
       ];
@@ -17321,7 +17558,7 @@ class Content extends DesignerPanel {
         display,
         suggestionStrip,
         // exclude the live suggestion rows — they render in the strip above
-        gridSpec(rows.length, "4", [
+        gridSpec$1(rows.length, "4", [
           { field: "#suggestion", operator: "empty", value: "" },
         ]),
       ];
@@ -17895,69 +18132,27 @@ class Content extends DesignerPanel {
 TreeBase.register(Content, "Content");
 
 /**
- * What a brand-new board starts with, so a student can build from scratch
- * without first learning layouts and actions: a message bar with a Clear
- * button, an empty grid to type words into, and the actions that make
- * tapping work (a word is spoken and added to the message; tapping the
- * message speaks it all; Clear empties it).
+ * The pieces a student builds a board from in the Layout tab — a message
+ * bar, a word grid, a button and tabs — and the plumbing that makes each
+ * one work as soon as it is added: it gets a unique name, the Actions rules
+ * that make tapping it do the obvious thing, and a Speech component on the
+ * page so there is a voice.
  *
- * Same shape and names as the boards "Generate with AI" builds
- * (content.js), so generating over a new board replaces it cleanly.
+ * Pieces are ordinary layout components (Grid, Display, Button,
+ * TabControl, …) arranged in Stacks, so boards built here open in the full
+ * component tree and everything else (switch scanning, AI generation)
+ * keeps working.
  */
 
-const starterLayout = {
+/** A brand-new board: an empty page */
+const blankLayout = {
   className: "Layout",
   // text big enough to read on a tablet; the whole board scales from this
   props: { name: "Layout", uiScale: "1.6" },
-  children: [
-    {
-      className: "Page",
-      props: {},
-      children: [
-        {
-          className: "Stack",
-          props: { direction: "row", background: "", scale: "1" },
-          children: [
-            {
-              className: "Display",
-              props: {
-                stateName: "$Display",
-                Name: "display",
-                background: "white",
-                fontSize: "2",
-                scale: "5",
-              },
-              children: [],
-            },
-            {
-              className: "Button",
-              props: {
-                label: "Clear",
-                name: "clear",
-                background: "",
-                scale: "1",
-              },
-              children: [],
-            },
-          ],
-        },
-        {
-          className: "Grid",
-          props: {
-            name: "grid",
-            rows: "3",
-            columns: "4",
-            fillItems: "true",
-            background: "white",
-            scale: "5",
-          },
-          children: [],
-        },
-        { className: "Speech", props: { stateName: "$Speak" }, children: [] },
-      ],
-    },
-  ],
+  children: [{ className: "Page", props: {}, children: [] }],
 };
+
+const blankActions = { className: "Actions", props: {}, children: [] };
 
 /** @param {string} origin @param {string} condition @param {[string, string][]} updates */
 function rule(origin, condition, updates) {
@@ -17979,18 +18174,532 @@ function rule(origin, condition, updates) {
   };
 }
 
-const starterActions = {
-  className: "Actions",
-  props: {},
-  children: [
-    rule("grid", "", [
-      ["$Speak", "#label"],
-      ["$Display", "add_word(#label)"],
-    ]),
-    rule("display", "$Display", [["$Speak", "$Display"]]),
-    rule("clear", "", [["$Display", "''"]]),
-  ],
-};
+/** @typedef {"message" | "grid" | "button" | "tabs"} PieceKind */
+
+/** What the Add menu offers, in order
+ * @type {{kind: PieceKind, label: string, icon: string, about: string}[]} */
+const pieceKinds = [
+  {
+    kind: "message",
+    label: "Message bar",
+    icon: "💬",
+    about: "Shows the sentence being built. Tap it to say it all.",
+  },
+  {
+    kind: "grid",
+    label: "Word grid",
+    icon: "▦",
+    about: "Rows of word buttons. Tap a word to say it.",
+  },
+  {
+    kind: "button",
+    label: "Button",
+    icon: "▢",
+    about: "One button that says a word or phrase.",
+  },
+  {
+    kind: "tabs",
+    label: "Tabs",
+    icon: "🗂",
+    about: "Pages of words to switch between, like Food and People.",
+  },
+];
+
+/** How much room each kind of piece takes next to others to start with */
+const defaultScale = { message: 1, grid: 4, button: 1, tabs: 4, clear: 1 };
+
+/** Components a student can click on and change */
+const selectable = new Set([
+  "Grid",
+  "Display",
+  "Button",
+  "TabControl",
+  "TabPanel",
+  "Radio",
+  "VSD",
+  "Gap",
+  "Prediction",
+]);
+
+/** Components that take up room on the board */
+const visualClasses = new Set([
+  "Stack",
+  "Gap",
+  "Grid",
+  "Display",
+  "Radio",
+  "TabControl",
+  "VSD",
+  "Button",
+  "Prediction",
+]);
+
+/** The friendly name for what a component is
+ * @param {TreeBase} component */
+function pieceLabel(component) {
+  switch (component.className) {
+    case "Grid":
+      return "Word grid";
+    case "Display":
+      return "Message bar";
+    case "Button":
+      return isClearButton(component) ? "Clear button" : "Button";
+    case "TabControl":
+      return "Tabs";
+    case "TabPanel":
+      return "Tab";
+    case "VSD":
+      return "Picture scene";
+    case "Radio":
+      return "Choices";
+    case "Gap":
+      return "Space";
+    case "Prediction":
+      return "Word prediction";
+    default:
+      return component.className;
+  }
+}
+
+/** The piece under a click on the board, or null for the background
+ * @param {EventTarget | null} target */
+function pieceAt(target) {
+  if (!(target instanceof Element)) return null;
+  const element = target.closest('[id^="TreeBase-"]');
+  let component = element ? TreeBase.componentFromId(element.id) : undefined;
+  while (component && !selectable.has(component.className)) {
+    component = component.parent;
+  }
+  return component || null;
+}
+
+/** @param {TreeBase} component */
+function isClearButton(component) {
+  return (
+    component.className === "Button" &&
+    /^clear\d*$/.test(String(component["name"]?.value))
+  );
+}
+
+/** The board's page
+ * @returns {TreeBase} */
+function page() {
+  return Globals.layout.children[0];
+}
+
+/** @param {TreeBase} node @returns {TreeBase[]} */
+function allComponents(node) {
+  return [node, ...node.children.flatMap(allComponents)];
+}
+
+/** A name no other component uses: grid, grid2, grid3, …
+ * @param {string} base */
+function uniqueName(base) {
+  const used = new Set();
+  for (const component of allComponents(Globals.layout)) {
+    for (const prop of ["name", "Name", "stateName"]) {
+      const value = component[prop]?.value;
+      if (value) used.add(String(value).replace(/^\$/, ""));
+    }
+  }
+  if (!used.has(base)) return base;
+  for (let i = 2; ; i++) if (!used.has(base + i)) return base + i;
+}
+
+function gridSpec() {
+  return {
+    className: "Grid",
+    props: {
+      name: uniqueName("grid"),
+      rows: "3",
+      columns: "4",
+      fillItems: "true",
+      background: "white",
+      scale: String(defaultScale.grid),
+    },
+    children: [],
+  };
+}
+
+/** @param {string} label */
+function tabSpec(label) {
+  return {
+    className: "TabPanel",
+    props: { name: label, label, direction: "column" },
+    children: [gridSpec()],
+  };
+}
+
+/** The layout for a new piece of the given kind
+ * @param {PieceKind | "clear"} kind */
+function spec(kind) {
+  switch (kind) {
+    case "message":
+      return {
+        className: "Stack",
+        props: { direction: "row", scale: String(defaultScale.message) },
+        children: [
+          {
+            className: "Display",
+            props: {
+              stateName: "$Display",
+              Name: uniqueName("display"),
+              background: "white",
+              fontSize: "2",
+              scale: "5",
+            },
+            children: [],
+          },
+          spec("clear"),
+        ],
+      };
+    case "clear":
+      return {
+        className: "Button",
+        props: { label: "Clear", name: uniqueName("clear"), scale: "1" },
+        children: [],
+      };
+    case "grid":
+      return gridSpec();
+    case "button":
+      return {
+        className: "Button",
+        props: {
+          label: "Hello",
+          name: uniqueName("button"),
+          scale: String(defaultScale.button),
+        },
+        children: [],
+      };
+    case "tabs": {
+      // the tabs themselves are added once this is on the board, so their
+      // grids get names that differ from each other (addPiece)
+      const name = uniqueName("tabs");
+      return {
+        className: "TabControl",
+        props: {
+          name,
+          stateName: "$" + name,
+          tabEdge: "top",
+          scale: String(defaultScale.tabs),
+        },
+        children: [],
+      };
+    }
+  }
+}
+
+/** True for containers that line their children up in a row or column
+ * @param {TreeBase | undefined} node */
+function isFlexContainer(node) {
+  return (
+    !!node &&
+    ["Page", "Stack", "TabPanel"].includes(node.className) &&
+    !(node["columns"]?.value > 0)
+  );
+}
+
+/**
+ * Add a piece to the board.
+ *
+ * With no anchor it goes at the end of the page; "inside" puts it in an
+ * (empty) tab; otherwise it goes above, below, left or right of the
+ * anchor, wrapping the anchor in a new row or column when needed.
+ *
+ * @param {PieceKind | "clear"} kind
+ * @param {TreeBase | null} anchor
+ * @param {"above" | "below" | "left" | "right" | "inside"} [side]
+ * @returns {TreeBase} the component to select afterwards
+ */
+function addPiece(kind, anchor = null, side = "below") {
+  let container = page();
+  let index = container.children.length;
+
+  // next to a message bar means next to it and its Clear button together
+  if (anchor && kind !== "clear" && side !== "inside") {
+    anchor = messageBar(anchor) ?? anchor;
+  }
+
+  if (anchor && side === "inside") {
+    container = anchor;
+    index = anchor.children.length;
+  } else if (anchor && isFlexContainer(anchor.parent)) {
+    const parent = /** @type {TreeBase} */ (anchor.parent);
+    const axis = side === "above" || side === "below" ? "column" : "row";
+    const after = side === "below" || side === "right" ? 1 : 0;
+    const visualSiblings = parent.children.filter((c) =>
+      visualClasses.has(c.className),
+    );
+    if (visualSiblings.length <= 1) parent["direction"].set(axis);
+    if (parent["direction"].value === axis) {
+      container = parent;
+      index = anchor.index + after;
+    } else {
+      container = wrap(anchor, axis);
+      anchor["scale"]?.set(defaultScale[kindOf(anchor)] ?? 1);
+      index = after;
+    }
+  }
+
+  const created = TreeBase.fromObject(spec(kind), container);
+  created.moveTo(index);
+  if (kind === "tabs") {
+    for (const label of ["Tab 1", "Tab 2"]) {
+      TreeBase.fromObject(tabSpec(label), created);
+    }
+  }
+  setUp(allComponents(created));
+  Globals.layout.update();
+  // select the part a student would change next
+  return created.className === "Stack" ? created.children[0] : created;
+}
+
+/** Put a component in a new row (or column) that takes its place
+ * @param {TreeBase} component
+ * @param {"row" | "column"} direction
+ * @returns {TreeBase} the new row or column */
+function wrap(component, direction) {
+  const parent = /** @type {TreeBase} */ (component.parent);
+  const wrapper = TreeBase.create("Stack", null, {
+    direction,
+    scale: component["scale"]?.value ?? 1,
+  });
+  parent.children[component.index] = wrapper;
+  wrapper.parent = parent;
+  component.parent = wrapper;
+  wrapper.children = [component];
+  return wrapper;
+}
+
+/** @param {TreeBase} component
+ * @returns {PieceKind | "other"} */
+function kindOf(component) {
+  return (
+    /** @type {Record<string, PieceKind>} */ ({
+      Grid: "grid",
+      Display: "message",
+      Button: "button",
+      TabControl: "tabs",
+    })[component.className] ?? "other"
+  );
+}
+
+/** Add a tab (with its own word grid) to a Tabs piece
+ * @param {TreeBase} tabs
+ * @returns {TreeBase} the new tab */
+function addTab(tabs) {
+  const labels = new Set(tabs.children.map((tab) => tab["label"].value));
+  let n = tabs.children.length + 1;
+  while (labels.has(`Tab ${n}`)) n++;
+  const tab = TreeBase.fromObject(tabSpec(`Tab ${n}`), tabs);
+  setUp(allComponents(tab));
+  Globals.state.update({ [tabs["stateName"].value]: tab["name"].value });
+  Globals.layout.update();
+  return tab;
+}
+
+/** Rename a tab, keeping it the one showing if it was
+ * @param {TreeBase} tab
+ * @param {string} label */
+function renameTab(tab, label) {
+  label = label.trim();
+  const tabs = tab.parent;
+  if (!label || !tabs) return;
+  const showing = Globals.state.get(tabs["stateName"].value) === tab["name"].value;
+  tab["label"].set(label);
+  tab["name"].set(label);
+  if (showing) Globals.state.update({ [tabs["stateName"].value]: label });
+  Globals.layout.update();
+}
+
+/**
+ * Where a piece goes when moved one step up, down, left or right: past its
+ * neighbor in that direction, or out of the row (or column) it shares with
+ * others to sit beside that row. Null when it can't go that way.
+ * @param {TreeBase} component
+ * @param {"above" | "below" | "left" | "right"} side
+ * @returns {{container: TreeBase, index: number, swap: boolean} | null}
+ */
+function moveTarget(component, side) {
+  const unit = messageBar(component) ?? component;
+  const axis = side === "above" || side === "below" ? "column" : "row";
+  const step = side === "above" || side === "left" ? -1 : 1;
+  let child = unit;
+  let container = unit.parent;
+  while (container && isFlexContainer(container)) {
+    if (container["direction"].value === axis) {
+      const peers = container.children;
+      const at = peers.indexOf(child);
+      if (child !== unit) {
+        return { container, index: step < 0 ? at : at + 1, swap: false };
+      }
+      let next = at + step;
+      while (peers[next] && !visualClasses.has(peers[next].className)) {
+        next += step;
+      }
+      if (peers[next]) return { container, index: next, swap: true };
+    }
+    child = container;
+    container = container.parent;
+  }
+  return null;
+}
+
+/** Move a piece one step up, down, left or right (see moveTarget)
+ * @param {TreeBase} component
+ * @param {"above" | "below" | "left" | "right"} side */
+function movePiece(component, side) {
+  const target = moveTarget(component, side);
+  if (!target) return;
+  const unit = messageBar(component) ?? component;
+  if (target.swap) {
+    unit.moveTo(target.index);
+  } else {
+    const from = /** @type {TreeBase} */ (unit.parent);
+    from.children.splice(unit.index, 1);
+    target.container.children.splice(target.index, 0, unit);
+    unit.parent = target.container;
+    tidy(from);
+  }
+  Globals.layout.update();
+}
+
+/**
+ * Remove a piece and tidy up: a message bar goes with its Clear button,
+ * and rows or columns left holding one piece are dissolved.
+ * @param {TreeBase} component
+ */
+function removePiece(component) {
+  const target = messageBar(component) ?? component;
+  const container = target.parent;
+  target.remove();
+  tidy(container);
+  Globals.layout.update();
+}
+
+/** The row holding a message bar and its Clear button, if that is what
+ * this display sits in
+ * @param {TreeBase} component */
+function messageBar(component) {
+  const parent = component.parent;
+  if (
+    component.className === "Display" &&
+    parent?.className === "Stack" &&
+    parent.children.every((c) => c === component || isClearButton(c))
+  ) {
+    return parent;
+  }
+  return null;
+}
+
+/** Show or hide the Clear button next to a message bar
+ * @param {TreeBase} display */
+function toggleClearButton(display) {
+  const clear = clearButtonFor(display);
+  if (clear) {
+    removePiece(clear);
+    return;
+  }
+  // the bar and its button share a row of their own
+  const row = wrap(display, "row");
+  display["scale"].set(5);
+  TreeBase.fromObject(spec("clear"), row);
+  setUp(row.children);
+  Globals.layout.update();
+}
+
+/** @param {TreeBase} display */
+function clearButtonFor(display) {
+  return display.parent?.children.find(isClearButton) ?? null;
+}
+
+/** Dissolve rows and columns that hold one piece or none
+ * @param {TreeBase | undefined} node */
+function tidy(node) {
+  while (
+    node &&
+    node.className === "Stack" &&
+    node.children.length <= 1 &&
+    node.parent
+  ) {
+    const parent = node.parent;
+    if (node.children.length === 1) {
+      const only = node.children[0];
+      only["scale"]?.set(node["scale"].value);
+      parent.children[node.index] = only;
+      only.parent = parent;
+      node.children = [];
+      TreeBase.idMap.delete(node.id);
+    } else {
+      node.remove();
+    }
+    node = parent;
+  }
+}
+
+/**
+ * Make new components work: rules so tapping does the obvious thing,
+ * a voice on the page, and separate words for each word grid.
+ * @param {TreeBase[]} added
+ */
+function setUp(added) {
+  const actions = Globals.actions;
+  const origins = new Set(actions.children.map((r) => r["origin"].value));
+  /** @param {string} origin @param {string} condition @param {[string, string][]} updates */
+  const addRule = (origin, condition, updates) => {
+    if (!origin || origins.has(origin)) return;
+    origins.add(origin);
+    TreeBase.fromObject(rule(origin, condition, updates), actions);
+  };
+  const speakAndAdd = /** @type {[string, string][]} */ ([
+    ["$Speak", "#label"],
+    ["$Display", "add_word(#label)"],
+  ]);
+  for (const component of added) {
+    if (component.className === "Grid") {
+      addRule(component["name"].value, "", speakAndAdd);
+    } else if (component.className === "Display") {
+      const state = component["stateName"].value;
+      addRule(component["Name"].value, state, [["$Speak", state]]);
+    } else if (isClearButton(component)) {
+      addRule(component["name"].value, "", [["$Display", "''"]]);
+    } else if (component.className === "Button") {
+      addRule(component["name"].value, "", speakAndAdd);
+    }
+  }
+  actions.update();
+
+  const board = page();
+  if (!board.children.some((c) => c.className === "Speech")) {
+    TreeBase.fromObject(
+      { className: "Speech", props: { stateName: "$Speak" }, children: [] },
+      board,
+    );
+  }
+
+  separateGrids(added.filter((c) => c.className === "Grid"));
+}
+
+/**
+ * With more than one word grid, each needs its own words: new grids show
+ * words marked with their name (words typed into a grid are marked that
+ * way, grid.js), and the grids already there keep the unmarked words, so
+ * words loaded from a spreadsheet stay where they were.
+ * @param {TreeBase[]} newGrids
+ */
+function separateGrids(newGrids) {
+  const grids = allComponents(Globals.layout).filter(
+    (c) => c.className === "Grid" && c["name"].value !== "suggestions",
+  );
+  if (grids.length < 2) return;
+  for (const grid of grids) {
+    if (grid.children.some((f) => f["field"].value === "#grid")) continue;
+    const props = newGrids.includes(grid)
+      ? { field: "#grid", operator: "equals", value: `'${grid["name"].value}'` }
+      : { field: "#grid", operator: "empty", value: "" };
+    TreeBase.fromObject({ className: "GridFilter", props, children: [] }, grid);
+  }
+}
 
 // map old names to new for the transition
 const typeToClassName = {
@@ -18015,12 +18724,44 @@ class Layout extends DesignerPanel {
   allowDelete = false;
 
   static tableName = "layout";
-  static defaultValue = starterLayout;
+  static defaultValue = blankLayout;
 
   uiScale = new Float(0.7);
 
   /** @type {string} */
   _searchQuery = "";
+
+  /** The piece clicked on the board
+   * @type {TreeBase | null} */
+  _selected = null;
+
+  /** Where the next piece goes while the Add menu is open
+   * @type {{anchor: TreeBase | null, side: "above" | "below" | "left" | "right" | "inside"} | null} */
+  _adding = null;
+
+  /** Whether the full component tree is showing */
+  _showTree = false;
+
+  /** The selected piece, if it is still on the board */
+  get selected() {
+    const selected = this._selected;
+    if (selected && TreeBase.idMap.get(selected.id) === selected) {
+      return selected;
+    }
+    return null;
+  }
+
+  /** @param {TreeBase | null} component */
+  select(component) {
+    if (component === this.selected) return;
+    this._selected = component;
+    this._adding = null;
+    // show the Layout tab, without moving focus off the board (a click
+    // on an empty square there opens a text box)
+    const designer = Globals.designer;
+    const patch = component && designer ? { [designer.stateName.value]: this.name.value } : {};
+    Globals.state.update(patch);
+  }
 
   settings() {
     const self = this;
@@ -18036,10 +18777,19 @@ class Layout extends DesignerPanel {
         }
       }}
     >
+      ${this.simpleView()}
+      <details
+        class="layout-tree"
+        ?open=${this._showTree}
+        @toggle=${(/** @type {Event} */ e) => {
+          this._showTree = /** @type {HTMLDetailsElement} */ (e.target).open;
+        }}
+      >
+        <summary>All components (advanced)</summary>
       <details class="panel-help">
         <summary>About the Layout tab</summary>
         <div class="panel-help-body">
-          <p>Build your board's visual structure here. The tree below shows every component on the board — pages, containers, buttons, displays, and more.</p>
+          <p>The full tree of every component on the board — pages, containers, buttons, displays, and more. For everyday building, use the pieces above instead.</p>
           <ul>
             <li>Expand any item to edit its properties.</li>
             <li>Use the <strong>＋ Add…</strong> selector inside a component to add children (Stacks, Grids, Buttons, etc.).</li>
@@ -18063,7 +18813,308 @@ class Layout extends DesignerPanel {
         />
       </div>
       ${this.children[0].settings()}
+      </details>
     </div>`;
+  }
+
+  /** The plain-language editor: add pieces, and change the one clicked */
+  simpleView() {
+    const selected = this.selected;
+    const page = this.children[0];
+    const empty = !page.children.some((c) => visualClasses.has(c.className));
+    // outline the selected piece on the board
+    const outline = html`<style
+      .textContent=${selected
+        ? `body.designing #UI [id="${selected.id}"] {
+            outline: 3px solid var(--brand);
+            outline-offset: -3px;
+          }`
+        : ""}
+    ></style>`;
+
+    let body;
+    if (this._adding) {
+      body = this.addMenu();
+    } else if (selected) {
+      body = this.inspector(selected);
+    } else if (empty) {
+      this._adding = { anchor: null, side: "below" };
+      body = this.addMenu();
+    } else {
+      body = html`<p class="piece-hint">
+          Click a piece on the board to change it, or click an empty
+          square in a word grid to add a word.
+        </p>
+        <button
+          class="piece-action"
+          @click=${() => {
+            this._adding = { anchor: null, side: "below" };
+            Globals.state.update();
+          }}
+        >
+          + Add a piece at the bottom
+        </button>`;
+    }
+    return html`<div class="layout-simple">${outline}${body}</div>`;
+  }
+
+  /** The choice of pieces to add */
+  addMenu() {
+    const adding = /** @type {NonNullable<Layout["_adding"]>} */ (this._adding);
+    const page = this.children[0];
+    const empty = !page.children.some((c) => visualClasses.has(c.className));
+    const where = adding.anchor
+      ? adding.side === "inside"
+        ? "inside this tab"
+        : `${adding.side === "above" || adding.side === "below" ? adding.side : "to the " + adding.side} of the ${pieceLabel(adding.anchor).toLowerCase()}`
+      : "";
+    return html`<h3 class="piece-heading">
+        ${empty ? "Your board is empty. Add a first piece:" : `Add a piece ${where}`}
+      </h3>
+      <div class="piece-menu">
+        ${pieceKinds.map(
+          (piece) => html`<button
+            class="piece-choice"
+            @click=${() => {
+              this._adding = null;
+              this._selected = addPiece(piece.kind, adding.anchor, adding.side);
+            }}
+          >
+            <span class="piece-icon" aria-hidden="true">${piece.icon}</span>
+            <strong>${piece.label}</strong>
+            <span>${piece.about}</span>
+          </button>`,
+        )}
+      </div>
+      ${empty
+        ? html`<p class="piece-hint">
+            Tip: start with a Message bar, then add a Word grid below it.
+          </p>`
+        : html`<button
+            class="piece-action"
+            @click=${() => {
+              this._adding = null;
+              Globals.state.update();
+            }}
+          >
+            Cancel
+          </button>`}`;
+  }
+
+  /** Settings for the selected piece
+   * @param {TreeBase} piece */
+  inspector(piece) {
+    /** @param {"above" | "below" | "left" | "right" | "inside"} side */
+    const startAdding = (side) => {
+      this._adding = { anchor: piece, side };
+      Globals.state.update();
+    };
+    /** @type {["above" | "below" | "left" | "right", string][]} */
+    const sides = [
+      ["above", "↑ Up"],
+      ["below", "↓ Down"],
+      ["left", "← Left"],
+      ["right", "→ Right"],
+    ];
+    const isTab = piece.className === "TabPanel";
+    const canRemove = !isTab || (piece.parent?.children.length ?? 0) > 1;
+    return html`<div class="piece-inspector">
+      <div class="piece-title">
+        <h3>${pieceLabel(piece)}${isTab ? `: ${piece["label"].value}` : ""}</h3>
+        <button
+          class="piece-done"
+          title="Stop changing this piece"
+          @click=${() => this.select(null)}
+        >
+          Done
+        </button>
+      </div>
+      ${this.pieceSettings(piece)}
+      ${isTab
+        ? piece.children.length
+          ? html``
+          : html`<button class="piece-action" @click=${() => startAdding("inside")}>
+              + Add a piece inside this tab
+            </button>`
+        : html`<div class="piece-add">
+            <span>Move it:</span>
+            <div class="piece-sides">
+              ${sides.map(
+                ([side, label]) => html`<button
+                  ?disabled=${!moveTarget(piece, side)}
+                  aria-label=${`Move ${side === "above" ? "up" : side === "below" ? "down" : side}`}
+                  @click=${() => movePiece(piece, side)}
+                >
+                  ${label}
+                </button>`,
+              )}
+            </div>
+          </div>
+          <div class="piece-add">
+            <span>Add a piece next to it:</span>
+            <div class="piece-sides">
+              <button @click=${() => startAdding("above")} aria-label="Add above">↑ Above</button>
+              <button @click=${() => startAdding("below")} aria-label="Add below">↓ Below</button>
+              <button @click=${() => startAdding("left")} aria-label="Add to the left">← Left</button>
+              <button @click=${() => startAdding("right")} aria-label="Add to the right">→ Right</button>
+            </div>
+          </div>`}
+      ${canRemove
+        ? html`<button
+            class="piece-action piece-remove"
+            @click=${() => {
+              const tabs = isTab ? piece.parent : null;
+              removePiece(piece);
+              this.select(tabs ?? null);
+            }}
+          >
+            ${isTab ? "Remove this tab" : "Remove from the board"}
+          </button>`
+        : html``}
+      <p class="piece-hint">Drag the grey bars between pieces on the board to resize them.</p>
+    </div>`;
+  }
+
+  /** The few settings that matter for each kind of piece
+   * @param {TreeBase} piece */
+  pieceSettings(piece) {
+    /** @param {string} label @param {any} prop @param {number} min @param {number} max */
+    const number = (label, prop, min, max) => html`<label class="piece-field">
+      <span>${label}</span>
+      <input
+        type="number"
+        min=${min}
+        max=${max}
+        .value=${String(prop.value)}
+        @change=${(/** @type {Event} */ e) => {
+          const input = /** @type {HTMLInputElement} */ (e.target);
+          const value = Math.min(max, Math.max(min, Math.round(+input.value || min)));
+          prop.set(value);
+          piece.update();
+        }}
+      />
+    </label>`;
+    /** @param {string} label @param {any} prop */
+    const text = (label, prop) => html`<label class="piece-field">
+      <span>${label}</span>
+      <input
+        type="text"
+        .value=${String(prop.value)}
+        @change=${(/** @type {Event} */ e) => {
+          prop.set(/** @type {HTMLInputElement} */ (e.target).value);
+          piece.update();
+        }}
+      />
+    </label>`;
+
+    switch (piece.className) {
+      case "Grid": {
+        const fill = piece["fillItems"];
+        return html`${number("Rows", piece["rows"], 1, 12)}
+          ${number("Columns", piece["columns"], 1, 12)}
+          <fieldset class="piece-field">
+            <legend>Words go</legend>
+            <label
+              ><input
+                type="radio"
+                name=${piece.id + "-fill"}
+                ?checked=${fill.value}
+                @change=${() => {
+                  fill.set(true);
+                  piece.update();
+                }}
+              />
+              in order, filling each row</label
+            >
+            <label
+              ><input
+                type="radio"
+                name=${piece.id + "-fill"}
+                ?checked=${!fill.value}
+                @change=${() => {
+                  fill.set(false);
+                  piece.update();
+                }}
+              />
+              in the square I click</label
+            >
+          </fieldset>
+          <p class="piece-hint">
+            Click an empty square on the board to add a word. Press Enter to
+            go on to the next square, or paste a list.
+          </p>`;
+      }
+      case "Display": {
+        const size = piece["fontSize"];
+        const sizes = [
+          ["Small", 1.5],
+          ["Medium", 2],
+          ["Large", 3],
+          ["Extra large", 4],
+        ];
+        // a size set elsewhere stays selectable
+        if (!sizes.some(([, value]) => value == size.value)) {
+          sizes.push([`Custom (${size.value})`, size.value]);
+        }
+        return html`<label class="piece-field">
+            <span>Text size</span>
+            <select
+              @change=${(/** @type {Event} */ e) => {
+                size.set(/** @type {HTMLSelectElement} */ (e.target).value);
+                piece.update();
+              }}
+            >
+              ${sizes.map(
+                ([label, value]) =>
+                  html`<option value=${value} ?selected=${size.value == value}>
+                    ${label}
+                  </option>`,
+              )}
+            </select>
+          </label>
+          <label class="piece-field piece-check">
+            <input
+              type="checkbox"
+              ?checked=${!!clearButtonFor(piece)}
+              @change=${() => toggleClearButton(piece)}
+            />
+            <span>Clear button next to it</span>
+          </label>`;
+      }
+      case "Button":
+        return html`${text("Says", piece["label"])}`;
+      case "TabControl":
+        return html`<div class="piece-field piece-tabs">
+            <span>Tabs</span>
+            ${piece.children.map(
+              (tab) => html`<input
+                type="text"
+                aria-label="Tab name"
+                .value=${String(tab["label"].value)}
+                @change=${(/** @type {Event} */ e) =>
+                  renameTab(tab, /** @type {HTMLInputElement} */ (e.target).value)}
+              />`,
+            )}
+            <button class="piece-action" @click=${() => addTab(piece)}>
+              + Add a tab
+            </button>
+          </div>
+          <p class="piece-hint">
+            Click a tab on the board to show it, then click inside it to
+            change what it holds.
+          </p>`;
+      case "TabPanel":
+        return html`${text("Tab name", {
+          get value() {
+            return piece["label"].value;
+          },
+          set: (/** @type {string} */ value) => renameTab(piece, value),
+        })}`;
+      default:
+        return html`<p class="piece-hint">
+          This piece's settings are in “All components (advanced)” below.
+        </p>`;
+    }
   }
 
   /**
@@ -18228,6 +19279,20 @@ class Layout extends DesignerPanel {
 }
 TreeBase.register(Layout, "Layout");
 
+// In the designer, clicking a piece on the board selects it for the
+// Layout tab (capture phase, before the piece handles the click itself)
+document.addEventListener(
+  "click",
+  (event) => {
+    if (!Globals.state?.get("editing") || !Globals.layout) return;
+    const board = document.getElementById("UI");
+    if (!board || !board.contains(/** @type {Node} */ (event.target))) return;
+    if (event.target instanceof Element && event.target.closest(".resize-handle")) return;
+    Globals.layout.select(pieceAt(event.target));
+  },
+  true,
+);
+
 class Actions extends DesignerPanel {
   name = new String$1("Actions");
   scale = new Float(1);
@@ -18235,7 +19300,7 @@ class Actions extends DesignerPanel {
   allowedChildren = ["Action"];
 
   static tableName = "actions";
-  static defaultValue = starterActions;
+  static defaultValue = blankActions;
 
   /** @type {Action[]} */
   children = [];
@@ -22014,12 +23079,10 @@ class PatternManager extends PatternBase {
         index: event?.groupIndex || 0,
       });
     } else if (current instanceof HTMLButtonElement) {
-      // In the designer a click on a grid cell edits its word (grid.js)
-      // instead of pressing it; Preview is where the board gets tried out.
-      if (
-        Globals.state.get("editing") &&
-        current.dataset.ComponentType === "Grid"
-      ) {
+      // In the designer a click selects a piece (layout.js) or edits a
+      // grid word (grid.js) instead of pressing it; Preview is where the
+      // board gets tried out. Tabs still switch, so each can be edited.
+      if (Globals.state.get("editing") && !current.hasAttribute("click")) {
         this.cue();
         return;
       }
@@ -25952,11 +27015,12 @@ const steps = [
   {
     tab: "Layout",
     find: () => document.querySelector("#tabs .panels"),
-    title: "Layout: the structure",
+    title: "Layout: the pieces of your board",
     body:
-      "The Layout panel is a tree of components — a Page holding Grids, " +
-      "Stacks, Displays, and Buttons. Select a component to edit its " +
-      "properties, and use the Add menu to put new pieces inside it.",
+      "Add pieces here — a message bar, word grids, buttons, tabs. Click " +
+      "a piece on the board to change it or add another next to it, and " +
+      "drag the bar between two pieces to resize them. The full component " +
+      "tree is under “All components (advanced)”.",
   },
   {
     tab: "Content",
@@ -26029,8 +27093,8 @@ const steps = [
   {
     title: "That’s the tour!",
     body:
-      "Start with Generate with AI or add a Grid in Layout, drop in some " +
-      "media, and press Preview. You can run this tour again any time " +
+      "Start with Generate with AI or add a Word grid in Layout, type in " +
+      "some words, and press Preview. You can run this tour again any time " +
       "from Help → Tutorial.",
   },
 ];
@@ -27268,13 +28332,6 @@ class SpeechSuggestions {
    * user's finger */
   _lastSignature = "";
 
-  /**
-   * keyword → ARASAAC pictogram URL ("" when no match) so repeated
-   * concepts never refetch
-   * @type {Map<string, string>}
-   */
-  _symbolCache = new Map();
-
   /** True after a first tap on the Reset board button; a second tap
    * within 4 s actually clears the board */
   _resetArmed = false;
@@ -27633,7 +28690,7 @@ class SpeechSuggestions {
 
       // look up a pictogram for each suggestion (cached per keyword)
       const symbols = await Promise.all(
-        items.map((/** @type {{keyword: string}} */ s) => this._findPictogram(s.keyword)),
+        items.map((/** @type {{keyword: string}} */ s) => findPictogram(s.keyword)),
       );
 
       // a newer fetch started (or listening stopped) while we waited
@@ -27730,38 +28787,6 @@ class SpeechSuggestions {
     }
 
     Globals.state?.update();
-  }
-
-  /**
-   * Find an ARASAAC pictogram URL for a keyword. Returns "" when the
-   * keyword is empty or has no match. Results (including misses) are
-   * cached so the same concept is only looked up once per session.
-   * @param {string} keyword
-   * @returns {Promise<string>}
-   */
-  async _findPictogram(keyword) {
-    keyword = keyword.trim().toLowerCase();
-    if (!keyword) return "";
-    const cached = this._symbolCache.get(keyword);
-    if (cached !== undefined) return cached;
-
-    let url = "";
-    try {
-      const response = await fetch(
-        `https://api.arasaac.org/api/pictograms/en/bestsearch/${encodeURIComponent(keyword)}`,
-      );
-      if (response.ok) {
-        const results = await response.json();
-        const id = results?.[0]?._id;
-        if (id) {
-          url = `https://static.arasaac.org/pictograms/${id}/${id}_300.png`;
-        }
-      }
-    } catch {
-      // no image for this button — the label alone still works
-    }
-    this._symbolCache.set(keyword, url);
-    return url;
   }
 
   /**

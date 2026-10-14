@@ -789,6 +789,71 @@ body.designing .row > div {
   flex-shrink: 0;
   min-width: 80px;
 }
+
+/* ── Designer: bars between pieces to drag to resize (stack.js) ── */
+body.designing .row > div,
+body.designing .column > div {
+  position: relative;
+}
+
+.resize-handle {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background-color var(--transition-fast);
+}
+
+/* a grip that is always showing, so the bar can be found */
+.resize-handle::before {
+  content: "";
+  border-radius: 3px;
+  background: var(--text2);
+  opacity: 0.45;
+  transition:
+    opacity var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+/* 14px to grab, centred on the 5px gap between pieces */
+.column > div > .resize-handle {
+  left: 0;
+  right: 0;
+  bottom: -9.5px;
+  height: 14px;
+  cursor: row-resize;
+}
+
+.column > div > .resize-handle::before {
+  width: 44px;
+  height: 5px;
+}
+
+.row > div > .resize-handle {
+  top: 0;
+  bottom: 0;
+  right: -9.5px;
+  width: 14px;
+  cursor: col-resize;
+}
+
+.row > div > .resize-handle::before {
+  width: 5px;
+  height: 44px;
+}
+
+.resize-handle:hover,
+.resize-handle.dragging {
+  background: hsl(var(--hue) 60% 60% / 0.18);
+}
+
+.resize-handle:hover::before,
+.resize-handle.dragging::before {
+  background: var(--brand);
+  opacity: 1;
+}
 /* ── Grid container ── */
 .grid {
   height: 100%;
@@ -3006,18 +3071,10 @@ div.page.empty::before {
   font-size: 0.95em;
   font-weight: 400;
   color: var(--text2);
-  content:
-    "Your board is empty."
-    "\A"
-    "\A"
-    "① In the Layout tab → click  + Add…  on a component to add a Grid or Stack"
-    "\A"
-    "② In the Content tab → click  Load media  to import images or audio"
-    "\A"
-    "③ Drag media from the Content panel onto any button in your board";
+  content: "Your board is empty.";
   white-space: pre;
   max-width: 34em;
-  text-align: left;
+  text-align: center;
   line-height: 1.85;
   padding: 1.5rem 1.75rem;
   border: 1.5px dashed var(--border-color);
@@ -3028,6 +3085,10 @@ div.page.empty::before {
   text-transform: none;
   letter-spacing: normal;
   opacity: 1;
+}
+
+body.designing div.page.empty::before {
+  content: "Your board is empty." "\A" "Choose a first piece in the Layout panel  →";
 }
 
 /* ── Generic empty container label ── */
@@ -3058,6 +3119,176 @@ body.designing #UI [highlight="parent"] {
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 0.35em;
   margin-bottom: 0.25em;
+}
+
+/* ── Simple Layout editor (pieces) ── */
+.layout-simple {
+  padding: 0.9em 1.15em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.layout-simple .piece-heading,
+.layout-simple .piece-title h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.piece-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.piece-menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11em, 1fr));
+  gap: 0.6em;
+}
+
+.piece-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2em;
+  padding: 0.8em 0.9em;
+  text-align: left;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface1);
+  color: var(--text1);
+  cursor: pointer;
+}
+
+.piece-choice:hover,
+.piece-choice:focus-visible {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px hsl(var(--hue) 70% 60% / 0.18);
+}
+
+.piece-choice .piece-icon {
+  font-size: 1.5em;
+  line-height: 1.2;
+}
+
+.piece-choice span:last-child {
+  font-size: 0.85em;
+  color: var(--text2);
+}
+
+.piece-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.piece-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  margin: 0;
+}
+
+.piece-field > span:first-child {
+  min-width: 6em;
+  color: var(--text2);
+}
+
+.piece-field input[type="number"] {
+  width: 5em;
+}
+
+.piece-field input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+fieldset.piece-field {
+  flex-direction: column;
+  align-items: flex-start;
+  border: none;
+  padding: 0;
+  gap: 0.3em;
+}
+
+fieldset.piece-field legend {
+  color: var(--text2);
+  margin-bottom: 0.3em;
+}
+
+.piece-check > span:first-child,
+.piece-check input + span {
+  min-width: 0;
+  color: var(--text1);
+}
+
+.piece-tabs {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.piece-add {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  color: var(--text2);
+}
+
+.piece-sides {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4em;
+}
+
+.piece-sides button,
+.piece-action,
+.piece-done {
+  padding: 0.45em 0.7em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface1);
+  color: var(--text1);
+  cursor: pointer;
+}
+
+.piece-sides button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.piece-sides button:not(:disabled):hover,
+.piece-action:hover,
+.piece-done:hover {
+  border-color: var(--brand);
+}
+
+.piece-action {
+  align-self: flex-start;
+}
+
+.piece-remove {
+  color: hsl(0 65% 45%);
+}
+
+.piece-hint {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--text2);
+}
+
+/* the full component tree, folded away under the simple editor */
+.layout-tree {
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.5em;
+}
+
+.layout-tree > summary {
+  padding: 0.7em 1.15em;
+  color: var(--text2);
+  cursor: pointer;
 }
 /* ── Actions panel wrapper ── */
 div.actions div.scroll {
