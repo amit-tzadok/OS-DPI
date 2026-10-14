@@ -14568,6 +14568,9 @@ class Display extends TreeBase {
 
     return this.component(
       {
+        // in the designer an empty message bar shows sample text (CSS), so
+        // its text size can be seen while it is being chosen
+        classes: value ? [] : ["display-empty"],
         style: {
           backgroundColor: this.background.value,
           fontSize: this.fontSize.value + "rem",

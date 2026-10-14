@@ -1201,6 +1201,13 @@ body.designing .grid button.grid-empty:hover::after {
   cursor: default;
 }
 
+/* sample text in an empty message bar, designer only (display.js) */
+body.designing .display.display-empty button::before {
+  content: "Your message shows here";
+  color: var(--text2);
+  opacity: 0.55;
+}
+
 /* ── Utterance history list ── */
 .display-history {
   list-style: none;
