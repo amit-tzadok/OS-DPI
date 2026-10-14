@@ -362,8 +362,9 @@ export class Layout extends DesignerPanel {
             >
           </fieldset>
           <p class="piece-hint">
-            Click an empty square on the board to add a word. Press Enter to
-            go on to the next square, or paste a list.
+            Click a square on the board to type a word (Enter goes on to the
+            next square, or paste a list). Double-click a square to choose a
+            picture from your computer.
           </p>`;
       }
       case "Display": {

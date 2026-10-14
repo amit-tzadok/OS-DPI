@@ -6,6 +6,7 @@ import { styleString } from "./style";
 import { formatSlottedString } from "./slots";
 import Globals from "app/globals";
 import db from "app/db";
+import { fileOpen } from "browser-fs-access";
 import { findPictogram, isPictogram } from "./pictograms";
 import "css/grid.css";
 
@@ -64,7 +65,7 @@ class Grid extends TreeBase {
 
   /** The cell being typed into in the designer: which cell (by position on
    * this page), the row it edits (-1 for a new word) and the text so far
-   * @type {{key: string, absIdx: number, row: number, column: number, text: string} | null} */
+   * @type {{key: string, absIdx: number, row: number, column: number, text: string, opened: number} | null} */
   _editCell = null;
 
   /** Open the in-place text box on a cell (designer only)
@@ -75,7 +76,42 @@ class Grid extends TreeBase {
    */
   startEditing(row, column, absIdx, text) {
     if (!Globals.state?.get("editing")) return;
-    this._editCell = { key: `${row},${column}`, absIdx, row, column, text };
+    const opened = performance.now();
+    this._editCell = { key: `${row},${column}`, absIdx, row, column, text, opened };
+    Globals.state.update();
+  }
+
+  /**
+   * Choose a picture from the computer for a cell (designer, double-click):
+   * an empty cell gets a new button named after the file, a word keeps its
+   * word and gets the picture. Must be called from the click itself, so
+   * the browser allows the file chooser.
+   * @param {number} absIdx - the button's row, or -1 for an empty cell
+   * @param {number} row
+   * @param {number} column
+   */
+  async pickPicture(absIdx, row, column) {
+    this._editCell = null;
+    let file;
+    try {
+      file = await fileOpen({ description: "Pictures", mimeTypes: ["image/*"] });
+    } catch {
+      Globals.state.update(); // chooser closed without a picture
+      return;
+    }
+    await db.addMedia(file, file.name);
+    if (absIdx >= 0) {
+      await this.assignMediaToCell(absIdx, file.name);
+      return;
+    }
+    const { data } = Globals;
+    const label = file.name.replace(/\.[^.]+$/, "");
+    const rows = [
+      ...data.contentRows,
+      { ...this.newRow(label, row, column, this.page), symbol: file.name },
+    ];
+    data.setContent(rows);
+    await db.write("content", rows);
     Globals.state.update();
   }
 
@@ -184,6 +220,7 @@ class Grid extends TreeBase {
         row: next[0],
         column: next[1],
         text: "",
+        opened: 0, // opened by Enter, not a click
       };
     }
     Globals.state.update();
@@ -246,7 +283,15 @@ class Grid extends TreeBase {
   /** The text box shown in a cell while it is being edited */
   cellEditor() {
     const edit = /** @type {NonNullable<Grid["_editCell"]>} */ (this._editCell);
-    return html`<div class="grid-cell-editor">
+    return html`<div
+      class="grid-cell-editor"
+      @click=${(/** @type {MouseEvent} */ e) => {
+        // the second click of the double-click that opened this box
+        if (e.detail >= 2 && performance.now() - edit.opened < 600) {
+          this.pickPicture(edit.absIdx, edit.row, edit.column);
+        }
+      }}
+    >
       <input
         aria-label="Word for this button"
         placeholder="Type a word"
@@ -421,12 +466,12 @@ class Grid extends TreeBase {
       }}
       ?disabled=${!item.label && !item.symbol}
       title=${Globals.state?.get("editing") && absIdx >= 0
-        ? "Click to change the word (clear it to remove the button)"
+        ? "Click to change the word (clear it to remove the button); double-click to choose a picture"
         : null}
-      @click=${() => {
-        if (absIdx >= 0) {
-          self.startEditing(item.row, item.column, absIdx, String(item.label ?? ""));
-        }
+      @click=${(/** @type {MouseEvent} */ e) => {
+        if (absIdx < 0 || !Globals.state?.get("editing")) return;
+        if (e.detail >= 2) self.pickPicture(absIdx, item.row, item.column);
+        else self.startEditing(item.row, item.column, absIdx, String(item.label ?? ""));
       }}
       @dragstart=${function (/** @type {DragEvent} */ e) {
         if (!Globals.state?.get("editing")) {
@@ -507,8 +552,13 @@ class Grid extends TreeBase {
       tabindex="-1"
       class="grid-empty"
       ?disabled=${!editing}
-      title=${editing ? "Click to add a word" : null}
-      @click=${() => self.startEditing(row, column, -1, "")}
+      title=${editing ? "Click to add a word; double-click to add a picture" : null}
+      @click=${(/** @type {MouseEvent} */ e) => {
+        if (!editing) return;
+        // double-click chooses a picture; the first click opened a text box
+        if (e.detail >= 2) self.pickPicture(-1, row, column);
+        else self.startEditing(row, column, -1, "");
+      }}
       @dragover=${function (/** @type {DragEvent} */ e) {
         if (!Globals.state?.get("editing") || !e.dataTransfer) return;
         if (!e.dataTransfer.types.includes("application/x-osdpi-media")) return;

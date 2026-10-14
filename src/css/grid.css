@@ -277,8 +277,11 @@ body.designing .grid button.grid-empty:hover {
 }
 
 body.designing .grid button.grid-empty:hover::after {
-  content: "+ Add word";
-  font-size: 1em;
+  content: "+ Add word" "\A" "double-click: picture";
+  white-space: pre;
+  text-align: center;
+  line-height: 1.4;
+  font-size: 0.8em;
   font-weight: 600;
   color: var(--brand);
 }
