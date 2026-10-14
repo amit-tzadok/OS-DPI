@@ -686,10 +686,9 @@ export class SpeechSuggestions {
   }
 
   /**
-   * Wipe the board back to the initial state of a new design: no content
-   * rows and the default empty page (same shape as Layout.defaultValue —
-   * duplicated here to avoid importing the designer chain), then restart
-   * so everything reloads from the db.
+   * Wipe the board to a blank canvas: no content rows and a page holding
+   * only Speech, so the live suggestions fill the whole board (see
+   * _fitGrid), then restart so everything reloads from the db.
    */
   async _resetBoard() {
     this._stop();

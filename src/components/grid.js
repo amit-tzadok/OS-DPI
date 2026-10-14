@@ -61,6 +61,116 @@ class Grid extends TreeBase {
   page = 1;
   pageBoundaries = { 0: 0 }; //track starting indices of pages
 
+  /** The cell being typed into in the designer: which cell (by position on
+   * this page), the row it edits (-1 for a new word) and the text so far
+   * @type {{key: string, absIdx: number, row: number, column: number, text: string} | null} */
+  _editCell = null;
+
+  /** Open the in-place text box on a cell (designer only)
+   * @param {number} row
+   * @param {number} column
+   * @param {number} absIdx - the row being renamed, or -1 to add a word
+   * @param {string} text
+   */
+  startEditing(row, column, absIdx, text) {
+    if (!Globals.state?.get("editing")) return;
+    this._editCell = { key: `${row},${column}`, absIdx, row, column, text };
+    Globals.state.update();
+  }
+
+  /** Save what was typed: a new word becomes a button, a renamed button
+   * keeps its picture, and clearing the text removes the button */
+  async finishEditing() {
+    const edit = this._editCell;
+    if (!edit) return;
+    this._editCell = null;
+    const { data } = Globals;
+    const label = edit.text.trim();
+    const rows = [...data.contentRows];
+
+    if (edit.absIdx >= 0) {
+      const target = data.getMatchingRows(this.children, false)[edit.absIdx];
+      const index = rows.indexOf(target);
+      // predicted words and notes aren't board content; leave them be
+      if (index < 0 || label === String(target.label ?? "")) {
+        Globals.state.update();
+        return;
+      }
+      if (label) rows[index] = { ...target, label };
+      else rows.splice(index, 1);
+    } else if (label) {
+      rows.push(this.newRow(label, edit.row, edit.column));
+    } else {
+      Globals.state.update();
+      return;
+    }
+    data.setContent(rows);
+    await db.write("content", rows);
+    Globals.state.update();
+  }
+
+  /** A content row that will show up in this grid: it satisfies the grid's
+   * "equals" filters (e.g. the category being shown) and, when items are
+   * placed by position, sits in the cell that was clicked
+   * @param {string} label
+   * @param {number} row
+   * @param {number} column
+   * @returns {Row}
+   */
+  newRow(label, row, column) {
+    /** @type {Row} */
+    const result = { label, sheetName: "sheet1" };
+    for (const filter of this.children) {
+      if (filter.operator.value !== "equals") continue;
+      const value = filter.value.value;
+      const field = filter.field.value.slice(1);
+      if (field && value !== "" && value !== "*" && value != null) {
+        result[field] = value;
+      }
+    }
+    if (!this.fillItems.value) {
+      Object.assign(result, { row, column });
+      if (this.page > 1) result.page = this.page;
+    }
+    return result;
+  }
+
+  /** The text box shown in a cell while it is being edited */
+  cellEditor() {
+    const edit = /** @type {NonNullable<Grid["_editCell"]>} */ (this._editCell);
+    return html`<div class="grid-cell-editor">
+      <input
+        aria-label="Word for this button"
+        placeholder="Type a word"
+        .value=${edit.text}
+        ref=${(/** @type {HTMLInputElement | null} */ el) => {
+          if (el && document.activeElement !== el) {
+            requestAnimationFrame(() => {
+              el.focus();
+              el.select();
+            });
+          }
+        }}
+        @input=${(/** @type {InputEvent} */ e) => {
+          edit.text = /** @type {HTMLInputElement} */ (e.target).value;
+        }}
+        @keydown=${(/** @type {KeyboardEvent} */ e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            this.finishEditing();
+          } else if (e.key === "Escape") {
+            this._editCell = null;
+            Globals.state.update();
+          }
+        }}
+        @blur=${() => {
+          if (this._editCell === edit) this.finishEditing();
+        }}
+      />
+    </div>`;
+  }
+
   /**
    * Assign a media file to a grid cell by its absolute index.
    * If absIdx is -1 (empty cell), a new content row is created.
@@ -150,6 +260,9 @@ class Grid extends TreeBase {
 
   /** @param {Row} item */
   gridCell(item) {
+    if (this._editCell?.key === `${item.row},${item.column}`) {
+      return this.cellEditor();
+    }
     const name = this.name.value;
     const hasContent = !!(item.label || item.symbol);
     const absIdx = item._absIndex ?? -1;
@@ -184,6 +297,14 @@ class Grid extends TreeBase {
         ComponentType: this.className,
       }}
       ?disabled=${!item.label && !item.symbol}
+      title=${Globals.state?.get("editing") && absIdx >= 0
+        ? "Click to change the word (clear it to remove the button)"
+        : null}
+      @click=${() => {
+        if (absIdx >= 0) {
+          self.startEditing(item.row, item.column, absIdx, String(item.label ?? ""));
+        }
+      }}
       @dragstart=${function (/** @type {DragEvent} */ e) {
         if (!Globals.state?.get("editing")) {
           e.preventDefault();
@@ -252,11 +373,18 @@ class Grid extends TreeBase {
     </button>`;
   }
 
-  emptyCell() {
+  /** @param {number} row @param {number} column */
+  emptyCell(row, column) {
+    if (this._editCell?.key === `${row},${column}`) return this.cellEditor();
     const self = this;
+    // clickable in the designer (to add a word); inert on the board
+    const editing = !!Globals.state?.get("editing");
     return html`<button
       tabindex="-1"
-      disabled
+      class="grid-empty"
+      ?disabled=${!editing}
+      title=${editing ? "Click to add a word" : null}
+      @click=${() => self.startEditing(row, column, -1, "")}
       @dragover=${function (/** @type {DragEvent} */ e) {
         if (!Globals.state?.get("editing") || !e.dataTransfer) return;
         if (!e.dataTransfer.types.includes("application/x-osdpi-media")) return;
@@ -377,8 +505,13 @@ class Grid extends TreeBase {
           if (!itemMap.has(key)) itemMap.set(key, item);
         }
       }
-      rows = maxRow;
-      columns = maxColumn;
+      // Positioned items set the grid's shape. A grid with none yet uses
+      // the rows and columns from the designer, so its empty cells show
+      // (boards made before this have content, so their shape is unchanged).
+      if (maxRow && maxColumn) {
+        rows = maxRow;
+        columns = maxColumn;
+      }
       for (let row = 1; row <= rows; row++) {
         for (let column = 1; column <= columns; column++) {
           if (maxPage > 1 && row == rows && column == columns) {
@@ -389,7 +522,7 @@ class Grid extends TreeBase {
             if (itemMap.has(key)) {
               result.push(this.gridCell(itemMap.get(key)));
             } else {
-              result.push(this.emptyCell());
+              result.push(this.emptyCell(row, column));
             }
           }
         }
@@ -412,7 +545,9 @@ class Grid extends TreeBase {
       }
       // fill any spaces that remain
       for (let i = items.length; i < perPage; i++) {
-        result.push(this.emptyCell());
+        result.push(
+          this.emptyCell(Math.floor(i / columns) + 1, (i % columns) + 1),
+        );
       }
       // draw the page selector if needed
       if (maxPage > 1) {
@@ -423,7 +558,7 @@ class Grid extends TreeBase {
     // empty result provokes a crash from uhtmlV4
     if (!result.length) {
       rows = columns = 1;
-      result.push(this.emptyCell());
+      result.push(this.emptyCell(1, 1));
     }
 
     style.gridTemplate = `repeat(${rows}, calc(100% / ${rows})) / repeat(${columns}, 1fr)`;

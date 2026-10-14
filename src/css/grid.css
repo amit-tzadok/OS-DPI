@@ -233,3 +233,72 @@ body:not(.designing) video[dbsrc]:not([src]) {
   text-transform: uppercase;
   color: var(--text2);
 }
+
+/* ── Empty cells ──
+   Always visible, so the shape of the grid shows on the board even before
+   it has any words. In the designer they invite a click to add a word. */
+.grid button.grid-empty {
+  border: 2px dashed hsl(var(--hue) 10% 72%);
+  background-color: hsl(var(--hue) 15% 96%);
+}
+
+html[color-scheme="dark"] .grid button.grid-empty {
+  border-color: hsl(var(--hue) 8% 40%);
+  background-color: hsl(var(--hue) 10% 16%);
+}
+
+body:not(.designing) .grid button.grid-empty:hover,
+body:not(.designing) .grid button.grid-empty:active {
+  transform: none;
+  box-shadow: none;
+  border-color: hsl(var(--hue) 10% 72%);
+  background-color: hsl(var(--hue) 15% 96%);
+}
+
+body.designing .grid button.grid-empty {
+  cursor: text;
+  position: relative;
+}
+
+body.designing .grid button.grid-empty::after {
+  content: "+";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 2em;
+  font-weight: 300;
+  color: hsl(var(--hue) 10% 62%);
+}
+
+body.designing .grid button.grid-empty:hover {
+  border-color: var(--brand);
+  background-color: hsl(var(--hue) 40% 94%);
+}
+
+body.designing .grid button.grid-empty:hover::after {
+  content: "+ Add word";
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--brand);
+}
+
+/* ── Typing a word into a cell (designer) ── */
+.grid .grid-cell-editor {
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--brand);
+  border-radius: var(--radius-md);
+  background: var(--surface1);
+  padding: 0.3em;
+}
+
+.grid .grid-cell-editor input {
+  width: 100%;
+  font: inherit;
+  font-size: 1.2em;
+  text-align: center;
+  padding: 0.3em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}

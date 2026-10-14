@@ -394,6 +394,15 @@ export class PatternManager extends PatternBase {
         index: event?.groupIndex || 0,
       });
     } else if (current instanceof HTMLButtonElement) {
+      // In the designer a click on a grid cell edits its word (grid.js)
+      // instead of pressing it; Preview is where the board gets tried out.
+      if (
+        Globals.state.get("editing") &&
+        current.dataset.ComponentType === "Grid"
+      ) {
+        this.cue();
+        return;
+      }
       if (current.hasAttribute("click")) {
         current.dispatchEvent(new Event("Activate"));
       } else {

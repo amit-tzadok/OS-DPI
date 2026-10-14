@@ -4,6 +4,7 @@ import * as Props from "./props";
 import { DesignerPanel } from "./designer";
 import "css/actions.css";
 import Globals from "app/globals";
+import { starterActions } from "./starterBoard";
 
 export class Actions extends DesignerPanel {
   name = new Props.String("Actions");
@@ -12,11 +13,7 @@ export class Actions extends DesignerPanel {
   allowedChildren = ["Action"];
 
   static tableName = "actions";
-  static defaultValue = {
-    className: "Actions",
-    props: {},
-    children: [],
-  };
+  static defaultValue = starterActions;
 
   /** @type {Action[]} */
   children = [];

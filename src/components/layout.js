@@ -7,18 +7,8 @@ import Globals from "app/globals";
 import { TabPanel } from "./tabcontrol";
 import { callAfterRender } from "app/render";
 import { ModalDialog } from "./modal-dialog";
+import { starterLayout } from "./starterBoard";
 
-const emptyPage = {
-  className: "Page",
-  props: {},
-  children: [
-    {
-      className: "Speech",
-      props: {},
-      children: [],
-    },
-  ],
-};
 
 // map old names to new for the transition
 const typeToClassName = {
@@ -43,7 +33,7 @@ export class Layout extends DesignerPanel {
   allowDelete = false;
 
   static tableName = "layout";
-  static defaultValue = emptyPage;
+  static defaultValue = starterLayout;
 
   uiScale = new Props.Float(0.7);
 
