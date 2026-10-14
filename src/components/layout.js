@@ -22,6 +22,7 @@ import {
   clearButtonFor,
   visualClasses,
 } from "./pieces";
+import { PictureChooser } from "./pictureChooser";
 
 // map old names to new for the transition
 const typeToClassName = {
@@ -64,6 +65,10 @@ export class Layout extends DesignerPanel {
   /** Whether the full component tree is showing */
   _showTree = false;
 
+  /** The "Find pictures" view, while it is open
+   * @type {PictureChooser | null} */
+  _pictures = null;
+
   /** The selected piece, if it is still on the board */
   get selected() {
     const selected = this._selected;
@@ -78,6 +83,7 @@ export class Layout extends DesignerPanel {
     if (component === this.selected) return;
     this._selected = component;
     this._adding = null;
+    this._pictures = null;
     // show the Layout tab, without moving focus off the board (a click
     // on an empty square there opens a text box)
     const designer = Globals.designer;
@@ -155,7 +161,9 @@ export class Layout extends DesignerPanel {
     ></style>`;
 
     let body;
-    if (this._adding) {
+    if (this._pictures && selected === this._pictures.grid) {
+      body = this._pictures.template();
+    } else if (this._adding) {
       body = this.addMenu();
     } else if (selected) {
       body = this.inspector(selected);
@@ -163,10 +171,9 @@ export class Layout extends DesignerPanel {
       this._adding = { anchor: null, side: "below" };
       body = this.addMenu();
     } else {
-      body = html`<p class="piece-hint">
-          Click a piece on the board to change it, or click an empty
-          square in a word grid to add a word.
-        </p>
+      const hasGrid = hasWordGrid(page);
+      body = html`${hasGrid ? howToFill() : html``}
+        <p class="piece-hint">Click a piece on the board to change it.</p>
         <button
           class="piece-action"
           @click=${() => {
@@ -332,7 +339,19 @@ export class Layout extends DesignerPanel {
     switch (piece.className) {
       case "Grid": {
         const fill = piece["fillItems"];
-        return html`${number("Rows", piece["rows"], 1, 12)}
+        const findPictures = html`<button
+          class="piece-action piece-ai"
+          @click=${() => {
+            this._pictures = new PictureChooser(piece, () => {
+              this._pictures = null;
+              Globals.state.update();
+            });
+            Globals.state.update();
+          }}
+        >
+          ✨ Let AI pick pictures
+        </button>`;
+        return html`${howToFill(findPictures)} ${number("Rows", piece["rows"], 1, 12)}
           ${number("Columns", piece["columns"], 1, 12)}
           <fieldset class="piece-field">
             <legend>Words go</legend>
@@ -360,12 +379,7 @@ export class Layout extends DesignerPanel {
               />
               in the square I click</label
             >
-          </fieldset>
-          <p class="piece-hint">
-            Click a square on the board to type a word (Enter goes on to the
-            next square, or paste a list). Double-click a square to choose a
-            picture from your computer.
-          </p>`;
+          </fieldset>`;
       }
       case "Display": {
         const size = piece["fontSize"];
@@ -601,6 +615,32 @@ export class Layout extends DesignerPanel {
   }
 }
 TreeBase.register(Layout, "Layout");
+
+/** @param {TreeBase} node @returns {boolean} */
+function hasWordGrid(node) {
+  return (
+    (node.className === "Grid" && node["name"]?.value !== "suggestions") ||
+    node.children.some(hasWordGrid)
+  );
+}
+
+/** How to put words and pictures into a word grid, shown prominently
+ * @param {Hole} [extra] - shown at the end, e.g. the Find pictures button */
+function howToFill(extra = html``) {
+  return html`<div class="piece-howto" role="note">
+    <strong>Fill the grid on the board:</strong>
+    <div class="howto-row">
+      <span class="howto-gesture">Click</span>
+      <span>a square to type a word</span>
+    </div>
+    <div class="howto-row">
+      <span class="howto-gesture">Double-click</span>
+      <span>a square to add a picture</span>
+    </div>
+    <small>Enter moves on to the next square. Paste a list to fill many.</small>
+    ${extra}
+  </div>`;
+}
 
 // In the designer, clicking a piece on the board selects it for the
 // Layout tab (capture phase, before the piece handles the click itself)
