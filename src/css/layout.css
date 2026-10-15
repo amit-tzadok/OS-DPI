@@ -477,13 +477,55 @@ body.designing #UI {
   color: var(--text2);
 }
 
-.board-tree {
+/* boards as a tree: a line from each board to the ones it opens */
+.board-tree,
+#designer .board-tree {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2em;
+  /* the designer's lists have their own guide line (designer.css) */
+  border-left: none;
+}
+
+.board-tree li {
+  position: relative;
+  padding: 0.15em 0;
+}
+
+.board-tree .board-tree,
+#designer .board-tree .board-tree {
+  margin-left: 1.1em;
+}
+
+.board-tree .board-tree > li {
+  padding-left: 1.3em;
+}
+
+/* └ from the line down the left to the board's name */
+.board-tree .board-tree > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.1em;
+  height: 1.1em;
+  border-left: 2px solid hsl(var(--hue) 20% 70%);
+  border-bottom: 2px solid hsl(var(--hue) 20% 70%);
+  border-bottom-left-radius: 6px;
+}
+
+/* the line goes on down to the next board at this level */
+.board-tree .board-tree > li::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.1em;
+  bottom: 0;
+  border-left: 2px solid hsl(var(--hue) 20% 70%);
+}
+
+.board-tree .board-tree > li:last-child::after {
+  display: none;
 }
 
 .board-chip {
@@ -504,4 +546,85 @@ body.designing #UI {
   background: var(--brand);
   color: white;
   font-weight: 600;
+}
+
+/* ── The board map above the board in the designer (layout.js) ── */
+body.designing.has-board-map #UI {
+  padding-top: 52px;
+}
+
+#board-map {
+  position: fixed;
+  z-index: 45;
+}
+
+#board-map[hidden] {
+  display: none;
+}
+
+.board-map-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 4px 6px 4px 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  background: var(--surface1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.board-map-label,
+.board-map-opens,
+.board-map-sep {
+  color: var(--text2);
+}
+
+.board-map-opens {
+  margin-left: 0.6em;
+}
+
+.board-map-bar .board-chip {
+  padding: 0.2em 0.7em;
+  font-size: 14px;
+}
+
+.board-chip.next {
+  border-style: dashed;
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.board-map-toggle {
+  margin-left: auto;
+  padding: 0.25em 0.8em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: var(--surface1);
+  color: var(--text1);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.board-map-toggle.open,
+.board-map-toggle:hover {
+  border-color: var(--brand);
+}
+
+.board-map-tree {
+  margin-top: 6px;
+  margin-left: auto;
+  width: fit-content;
+  min-width: 14em;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 0.8em 1em;
+  background: var(--surface1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md, 0 6px 24px rgb(0 0 0 / 0.18));
+  font-size: 14px;
 }

@@ -103,7 +103,8 @@ const steps = [
       "Add one under Boards, or a Board button from a piece's +. A word " +
       "square can open a board too: click its picture and pick what " +
       "tapping it does. New boards get a Back button, and the message " +
-      "bar stays on every board.",
+      "bar stays on every board. The strip above the board shows where " +
+      "you are and what it opens; 🗺 Map shows them all.",
   },
   {
     tab: "Content",
