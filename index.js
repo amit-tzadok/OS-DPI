@@ -13243,7 +13243,10 @@ class StackContainer extends TreeBase {
               ></div>`
             : html``;
 
+        // pieces with no room (Speech, a collapsed suggestions strip) take
+        // none in the designer either, where wrappers get a minimum size
         return html`<div
+          class=${size > 0 ? "" : "no-room"}
           style=${styleString({
             [dimension]: `${size}%`,
           })}
@@ -13985,6 +13988,23 @@ function imageOrVideo(src, title, onload = null) {
   }
 }
 
+/** The grid whose picture choices are showing, so a click elsewhere can
+ * close them
+ * @type {Grid | null} */
+let openPicker = null;
+
+document.addEventListener("pointerdown", (event) => {
+  if (!openPicker?._picturePick) return;
+  const target = /** @type {Element} */ (event.target);
+  // clicks inside the choices, or on a picture (which reopens them), stay
+  if (target.closest?.(".picture-popover, .grid button")) return;
+  openPicker.closePictures();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") openPicker?.closePictures();
+});
+
 class Grid extends TreeBase {
   fillItems = new Boolean$1(true, {
     title: "When on, buttons fill left-to-right in order. Turn off to set each button's exact row/column position.",
@@ -14016,6 +14036,7 @@ class Grid extends TreeBase {
    */
   startEditing(row, column, absIdx, text) {
     if (!Globals.state?.get("editing")) return;
+    this._picturePick = null;
     const opened = performance.now();
     this._editCell = { key: `${row},${column}`, absIdx, row, column, text, opened };
     Globals.state.update();
@@ -14032,6 +14053,7 @@ class Grid extends TreeBase {
    */
   async pickPicture(absIdx, row, column) {
     this._editCell = null;
+    this._picturePick = null;
     let file;
     try {
       file = await n({ description: "Pictures", mimeTypes: ["image/*"] });
@@ -14152,6 +14174,14 @@ class Grid extends TreeBase {
     data.setContent(rows);
     await db.write("content", rows);
 
+    if (this.fillItems.value) {
+      await this.growFor(data.getMatchingRows(this.children, false).length);
+      // the next empty square after the words, once it is drawn
+      this._typeNext = keepTyping;
+      Globals.state.update();
+      this.addPictures(added);
+      return;
+    }
     const next = empties[start + labels.length];
     if (keepTyping && next) {
       this._editCell = {
@@ -14165,6 +14195,132 @@ class Grid extends TreeBase {
     }
     Globals.state.update();
     this.addPictures(added);
+  }
+
+  /** Open the text box on the first empty square at the next drawing */
+  _typeNext = false;
+
+  /**
+   * Grow the grid so all its words fit with one empty square to spare
+   * (widening first, as boards are wider than tall), up to 8 × 8; beyond
+   * that it gets pages.
+   * @param {number} count
+   */
+  async growFor(count) {
+    let rows = this.rows.value;
+    let columns = this.columns.value;
+    while (rows * columns < count + 1) {
+      if (columns <= rows + 1 && columns < 8) columns++;
+      else if (rows < 8) rows++;
+      else break;
+    }
+    if (rows === this.rows.value && columns === this.columns.value) return;
+    this.rows.set(rows);
+    this.columns.set(columns);
+    // save without moving focus off the square being typed in
+    await Globals.layout.doUpdate(true);
+  }
+
+  /** The picture choices showing for a word on the board (designer)
+   * @type {{absIdx: number, row: number, column: number, label: string, choices: string[] | null} | null} */
+  _picturePick = null;
+
+  /** Show picture choices for a word, next to it on the board
+   * @param {number} absIdx
+   * @param {number} row
+   * @param {number} column
+   * @param {string} label
+   */
+  async openPictures(absIdx, row, column, label) {
+    this._editCell = null;
+    const pick = { absIdx, row, column, label, choices: /** @type {string[] | null} */ (null) };
+    this._picturePick = pick;
+    openPicker = this;
+    Globals.state.update();
+    const { choices } = await pictureChoices([label]);
+    if (this._picturePick !== pick) return;
+    pick.choices = choices.get(label) ?? [];
+    Globals.state.update();
+  }
+
+  closePictures() {
+    if (!this._picturePick) return;
+    this._picturePick = null;
+    Globals.state.update();
+  }
+
+  /** Use a picture (or none) for a word
+   * @param {number} absIdx
+   * @param {string} symbol */
+  async setPicture(absIdx, symbol) {
+    this._picturePick = null;
+    const { data } = Globals;
+    const target = data.getMatchingRows(this.children, false)[absIdx];
+    const rows = [...data.contentRows];
+    const index = rows.indexOf(target);
+    if (index >= 0) {
+      const { symbol: _old, ...rest } = target;
+      rows[index] = symbol ? { ...rest, symbol } : rest;
+      data.setContent(rows);
+      await db.write("content", rows);
+    }
+    Globals.state.update();
+  }
+
+  /** The picture choices, floating by the word's square */
+  picturePopover() {
+    const pick = /** @type {NonNullable<Grid["_picturePick"]>} */ (this._picturePick);
+    const { rows, columns } = this._shape;
+    const current = String(
+      Globals.data.getMatchingRows(this.children, false)[pick.absIdx]?.symbol ?? "",
+    );
+    // below the square in the top half, above it in the bottom half, and
+    // kept inside the grid sideways
+    /** @type {Partial<CSSStyleDeclaration>} */
+    const style = {};
+    if (pick.row <= rows / 2) style.top = `${(100 * pick.row) / rows}%`;
+    else style.bottom = `${(100 * (rows - pick.row + 1)) / rows}%`;
+    if (pick.column <= columns / 2) style.left = `${(100 * (pick.column - 1)) / columns}%`;
+    else style.right = `${(100 * (columns - pick.column)) / columns}%`;
+
+    return html`<div
+      class="picture-popover"
+      style=${styleString(style)}
+      role="dialog"
+      aria-label=${`Picture for ${pick.label}`}
+    >
+      <div class="picture-popover-title">
+        <strong>Picture for “${pick.label}”</strong>
+        <button aria-label="Close" @click=${() => this.closePictures()}>✕</button>
+      </div>
+      <div class="picture-popover-choices">
+        ${pick.choices === null
+          ? [html`<span class="picture-popover-note">Finding pictures…</span>`]
+          : pick.choices.length
+            ? pick.choices.map(
+                (url) => html`<button
+                  class=${url === current ? "chosen" : ""}
+                  aria-pressed=${url === current}
+                  @click=${() => this.setPicture(pick.absIdx, url)}
+                >
+                  <img src=${url} alt="" />
+                </button>`,
+              )
+            : [html`<span class="picture-popover-note">No match found</span>`]}
+      </div>
+      <div class="picture-popover-actions">
+        <button
+          @click=${() => this.pickPicture(pick.absIdx, pick.row, pick.column)}
+        >
+          From my computer…
+        </button>
+        ${current
+          ? html`<button @click=${() => this.setPicture(pick.absIdx, "")}>
+              No picture
+            </button>`
+          : html``}
+      </div>
+    </div>`;
   }
 
   /** Give buttons a matching picture, without holding up typing; a
@@ -14392,6 +14548,12 @@ class Grid extends TreeBase {
     } else {
       content = msg;
     }
+    if (!item.symbol && absIdx >= 0 && Globals.state?.get("editing")) {
+      content = [
+        ...(Array.isArray(content) ? content : [content]),
+        html`<span class="picture-add" title="Add a picture">🖼</span>`,
+      ];
+    }
 
     // Use data-drag-idx attribute so handlers can read the index at event time
     // rather than relying on closures that may be stale after re-renders.
@@ -14406,12 +14568,26 @@ class Grid extends TreeBase {
       }}
       ?disabled=${!item.label && !item.symbol}
       title=${Globals.state?.get("editing") && absIdx >= 0
-        ? "Click to change the word (clear it to remove the button); double-click to choose a picture"
+        ? "Click the word to change it, or its picture to choose another; double-click for a picture from your computer"
         : null}
       @click=${(/** @type {MouseEvent} */ e) => {
         if (absIdx < 0 || !Globals.state?.get("editing")) return;
+        // pictures don't take clicks themselves (grid.css), so check where
+        // the click landed
+        const button = /** @type {HTMLElement} */ (e.currentTarget);
+        const onPicture = [...button.querySelectorAll("img, video, .picture-add")].some(
+          (element) => {
+            const box = element.getBoundingClientRect();
+            return (
+              e.clientX >= box.left && e.clientX <= box.right &&
+              e.clientY >= box.top && e.clientY <= box.bottom
+            );
+          },
+        );
         if (e.detail >= 2) self.pickPicture(absIdx, item.row, item.column);
-        else self.startEditing(item.row, item.column, absIdx, String(item.label ?? ""));
+        else if (onPicture) {
+          self.openPictures(absIdx, item.row, item.column, String(item.label ?? ""));
+        } else self.startEditing(item.row, item.column, absIdx, String(item.label ?? ""));
       }}
       @dragstart=${function (/** @type {DragEvent} */ e) {
         if (!Globals.state?.get("editing")) {
@@ -14484,6 +14660,11 @@ class Grid extends TreeBase {
   /** @param {number} row @param {number} column */
   emptyCell(row, column) {
     this._emptyCells.push([row, column]);
+    if (this._typeNext) {
+      this._typeNext = false;
+      const key = `${row},${column}`;
+      this._editCell = { key, absIdx: -1, row, column, text: "", opened: 0 };
+    }
     if (this._editCell?.key === `${row},${column}`) return this.cellEditor();
     const self = this;
     // clickable in the designer (to add a word); inert on the board
@@ -14677,6 +14858,10 @@ class Grid extends TreeBase {
     }
 
     this._shape = { rows, columns };
+    this._typeNext = false; // no empty square to go on to
+    if (this._picturePick && Globals.state?.get("editing")) {
+      result.push(this.picturePopover());
+    }
     style.gridTemplate = `repeat(${rows}, calc(100% / ${rows})) / repeat(${columns}, 1fr)`;
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;
@@ -16819,7 +17004,13 @@ class Designer extends TreeBase {
    * Tabs that typical users and speech pathologists rarely need.
    * They are collapsed behind an "Advanced" toggle in the tab strip.
    */
-  static ADVANCED_TABS = new Set(["Actions", "Cues", "Patterns", "Methods"]);
+  static ADVANCED_TABS = new Set([
+    "Components",
+    "Actions",
+    "Cues",
+    "Patterns",
+    "Methods",
+  ]);
 
   /** Whether the advanced tab group is expanded */
   showAdvanced = false;
@@ -16994,8 +17185,8 @@ class Designer extends TreeBase {
       event.target.setAttribute("aria-selected", "true");
     }
 
-    if (this.currentPanel.name.value == "Layout") {
-      this.currentPanel.highlight();
+    if (["Layout", "Components"].includes(this.currentPanel.name.value)) {
+      Globals.layout.highlight();
     }
   };
 
@@ -18298,6 +18489,885 @@ class Content extends DesignerPanel {
 }
 TreeBase.register(Content, "Content");
 
+const defaultPatterns = {
+  className: "PatternList",
+  props: {
+    direction: "",
+    background: "",
+    scale: 1,
+    name: "Patterns",
+    label: "",
+  },
+  children: [
+    {
+      className: "PatternManager",
+      props: {
+        Cycles: "2",
+        Cue: "DefaultCue",
+        Name: "None",
+        Key: "idl83jg7qtj9wmyggtxf",
+        Active: false,
+      },
+      children: [],
+    },
+    {
+      className: "PatternManager",
+      props: {
+        Cycles: "2",
+        Cue: "DefaultCue",
+        Name: "Row Column",
+        Key: "idl83jjo4z0ibii6748fx",
+        Active: true,
+      },
+      children: [
+        {
+          className: "PatternSelector",
+          props: {},
+          children: [
+            {
+              className: "GroupBy",
+              props: {
+                GroupBy: "#row",
+                Name: "Row #row",
+                Cue: "DefaultCue",
+                Cycles: "2",
+              },
+              children: [],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      className: "PatternManager",
+      props: {
+        Cycles: 2,
+        Cue: "DefaultCue",
+        Name: "Column Row",
+        Key: "idlh6dwljzc1nwvfrrp9v",
+        Active: false,
+      },
+      children: [
+        {
+          className: "PatternSelector",
+          props: {},
+          children: [
+            {
+              className: "GroupBy",
+              props: {
+                GroupBy: "#column",
+                Name: "Column #column",
+                Cue: "DefaultCue",
+                Cycles: 2,
+              },
+              children: [],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      className: "PatternManager",
+      props: {
+        Cycles: "2",
+        Cue: "DefaultCue",
+        Name: "Controls and Rows",
+        Key: "idl83jjo4z0ibii6748fx",
+        Active: false,
+      },
+      children: [
+        {
+          className: "PatternGroup",
+          props: { Name: "Controls", Cycles: "2", Cue: "DefaultCue" },
+          children: [
+            {
+              className: "PatternSelector",
+              props: {},
+              children: [
+                {
+                  className: "Filter",
+                  props: { Filter: "#controls" },
+                  children: [],
+                },
+                {
+                  className: "OrderBy",
+                  props: { OrderBy: "#controls" },
+                  children: [],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          className: "PatternSelector",
+          props: {},
+          children: [
+            {
+              className: "Filter",
+              props: { Filter: "! #controls" },
+              children: [],
+            },
+            {
+              className: "GroupBy",
+              props: {
+                GroupBy: "#ComponentName",
+                Name: " Component",
+                Cue: "DefaultCue",
+                Cycles: "2",
+              },
+              children: [],
+            },
+            {
+              className: "GroupBy",
+              props: {
+                GroupBy: "#row",
+                Name: "Row #row",
+                Cue: "DefaultCue",
+                Cycles: "2",
+              },
+              children: [],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * Conditionally show an indicator with a title
+ *
+ * @param {boolean} toggle
+ * @param {string} title
+ * @returns {Hole}
+ */
+function toggleIndicator(toggle, title) {
+  if (toggle) {
+    return html`<span class="indicator" title=${title}>&#9679;</span>`;
+  } else {
+    return html`<!--empty-->`;
+  }
+}
+
+// only run one animation at a time
+let animationNonce = 0;
+
+/** @param {Target} target
+ * @param {string} defaultValue
+ * @param {boolean} isGroup
+ * */
+function cueTarget(target, defaultValue, isGroup = false) {
+  let fields = {};
+  if (target instanceof HTMLButtonElement) {
+    target.setAttribute("cue", defaultValue);
+    const video = target.querySelector("video");
+    if (!isGroup && video && !video.hasAttribute("autoplay")) {
+      if (video.hasAttribute("muted")) video.muted = true;
+      const promise = video.play();
+      if (promise !== undefined) {
+        promise
+          .then(() => {})
+          .catch(() => {});
+      }
+    }
+    fields = target.dataset;
+  } else if (target instanceof Group) {
+    target.cue(defaultValue);
+    fields = target.access;
+  }
+  const cue = Globals.cues.keyToCue(defaultValue);
+  if (!isGroup && cue) {
+    if (cue.SpeechField.value) {
+      const message = fields[cue.SpeechField.value.slice(1)];
+      speak(
+        message,
+        cue.voiceURI.value,
+        cue.pitch.value,
+        cue.rate.value,
+        cue.volume.value,
+      );
+    }
+    if (cue.AudioField.value) {
+      const file = fields[cue.AudioField.value.slice(1)] || "";
+      playAudio(file);
+    }
+  }
+}
+
+function clearCues() {
+  for (const element of document.querySelectorAll("#UI [cue]")) {
+    element.removeAttribute("cue");
+    const video = element.querySelector("video");
+    if (video && !video.hasAttribute("autoplay")) {
+      video.pause();
+      video.currentTime = 0;
+    }
+  }
+}
+
+/**
+ * Group is a collection of Buttons or Groups and associated properties such as
+ * the label and cue.
+ */
+class Group {
+  /**
+   * @param {Target[]} members
+   * @param {Object} props
+   */
+  constructor(members, props) {
+    /** @type {Target[]} */
+    this.members = members;
+    this.access = { GroupName: props.Name, ...props };
+  }
+
+  get length() {
+    return this.members.length * +this.access.Cycles;
+  }
+
+  /** @param {Number} index */
+  member(index) {
+    if (index < 0 || index >= this.length) {
+      return undefined;
+    } else {
+      return this.members[index % this.members.length];
+    }
+  }
+
+  /** @param {string} value */
+  cue(value = "", top = true) {
+    if (!value) {
+      value = this.access.Cue;
+    }
+    for (const member of this.members) {
+      if (member instanceof HTMLButtonElement)
+        cueTarget(member, value, !top || this.members.length > 1);
+      else if (member instanceof Group) {
+        member.cue(value, false);
+      }
+    }
+  }
+
+  /** Test if this group contains a button return the top-level index if so, -1 if not
+   * @param {HTMLButtonElement} button
+   * @returns {number}
+   */
+  contains(button) {
+    for (let i = 0; i < this.members.length; i++) {
+      const member = this.members[i];
+      if (
+        member === button ||
+        (member instanceof Group && member.contains(button) >= 0)
+      )
+        return i;
+    }
+    return -1;
+  }
+}
+
+class PatternBase extends TreeBase {
+  /** @type {PatternBase[]} */
+  children = [];
+
+  /**
+   * @param {Target[]} input
+   * @returns {Target[]}
+   */
+  apply(input) {
+    return input;
+  }
+}
+
+class PatternList extends DesignerPanel {
+  name = new String$1("Patterns");
+  allowDelete = false;
+
+  allowedChildren = ["PatternManager"];
+  /** @type {PatternManager[]} */
+  children = [];
+
+  static tableName = "pattern";
+  static defaultValue = defaultPatterns;
+
+  settings() {
+    return html`<div class=${this.CSSClasses("PatternList")} id=${this.id}>
+      <details class="panel-help">
+        <summary>About the Patterns tab</summary>
+        <div class="panel-help-body">
+          <p>Patterns define how buttons on the board are grouped and sequenced for switch scanning. Each <strong>Pattern Manager</strong> describes one complete scan sequence.</p>
+          <ul>
+            <li><strong>Default</strong> — mark one pattern as the default; it is used by Methods that don't specify a pattern.</li>
+            <li><strong>Pattern Group</strong> — clusters buttons together (e.g. all buttons in a row) so two-switch row-column scanning works. Set <em>Cycles</em> to control how many times the group repeats before auto-advancing.</li>
+            <li><strong>Pattern Selector</strong> — picks which buttons to include, with optional <em>Filter</em>, <em>Order By</em>, and <em>Group By</em> operators.</li>
+            <li>Press <strong>Animate</strong> on a Pattern Manager to preview the scan sequence in the canvas.</li>
+            <li>Leave a Pattern Manager with no children to scan every visible button in document order.</li>
+          </ul>
+        </div>
+      </details>
+      ${this.unorderedChildren()}
+    </div>`;
+  }
+
+  /**
+   * @returns {PatternManager}
+   */
+  get activePattern() {
+    return (
+      this.children.find((child) => child.Active.value) || this.children[0]
+    );
+  }
+
+  get patternMap() {
+    /** @type {[string,string][]} */
+    const entries = this.children.map((child) => [
+      child.Key.value,
+      child.Name.value,
+    ]);
+    entries.unshift(["DefaultPattern", "Default Pattern"]);
+    entries.unshift(["NullPattern", "No Pattern"]);
+    return new Map(entries);
+  }
+
+  /**
+   * return the pattern given its key
+   * @param {string} key
+   */
+  patternFromKey(key) {
+    let result;
+    if (key === "NullPattern") {
+      return nullPatternManager;
+    }
+    result = this.children.find((pattern) => pattern.Key.value == key);
+    if (!result) {
+      result = this.activePattern;
+    }
+    return result;
+  }
+
+  /**
+   * Merge an object into the panel contents
+   * @param {ExternalRep} obj
+   * @returns {Promise<void>}
+   */
+  async merge(obj) {
+    console.assert(obj.className == "PatternList", obj);
+    const toMerge = obj.children;
+    for (let newChild of toMerge) {
+      TreeBase.fromObject(newChild, this);
+    }
+    this.onUpdate();
+  }
+}
+TreeBase.register(PatternList, "PatternList");
+
+class PatternManager extends PatternBase {
+  allowedChildren = ["PatternSelector", "PatternGroup"];
+
+  /** @type {Group} */
+  targets = new Group([], {});
+  /**
+   * Stack keeps track of the nesting as we walk the tree
+   *
+   * @type {{ group: Group; cue: string, index: number }[]}
+   */
+  stack = [];
+
+  /**
+   * @type {Boolean} - cue is active when true
+   */
+  cued = false;
+
+  // props
+  Cue = new Cue$1({ defaultValue: "DefaultCue" });
+  Name = new String$1("a pattern");
+  Key = new UID();
+  Active = new OneOfGroup(false, {
+    group: "pattern-active",
+    label: "Default",
+  });
+  StartVisible = new Boolean$1(false);
+
+  settingsSummary() {
+    const { Name, Active } = this;
+    return html`<h3>
+      ${Name.value} ${toggleIndicator(Active.value, "Active")}
+    </h3>`;
+  }
+
+  settingsDetails() {
+    const { Cue, Name, Active, StartVisible } = this;
+    return [
+      html`
+        <div>
+          ${Name.input()} ${Active.input()} ${Cue.input()}
+          ${StartVisible.input()}
+          <button
+            @click=${() => {
+              this.animate();
+            }}
+          >
+            Animate
+          </button>
+          ${this.orderedChildren()}
+        </div>
+      `,
+    ];
+  }
+
+  settingsChildren() {
+    return html`<div />`;
+  }
+
+  /**
+   * @param {Target[]} input
+   * @returns {Target[]}
+   */
+  apply(input) {
+    let members = [];
+    for (const child of this.children) {
+      const r = child.apply(input);
+      if (r.length > 0) {
+        if (r instanceof Group) {
+          members.push(r);
+        } else {
+          members = members.concat(r);
+        }
+      }
+    }
+    if (members.length > 0) return [new Group(members, this.propsAsObject)];
+    else return [];
+  }
+
+  /** Collect the nodes from the DOM and process them into targets */
+  refresh() {
+    // gather the buttons from the UI
+    const buttons = [];
+    for (const node of /** @type {NodeListOf<HTMLButtonElement>} */ (
+      document.querySelectorAll("#UI button:not(:disabled)")
+    )) {
+      buttons.push(node);
+    }
+
+    let members = [];
+    if (this.children.length) {
+      for (const child of this.children) {
+        const r = child.apply(buttons);
+        if (r.length > 0) {
+          if (r instanceof Group) {
+            members.push(r);
+          } else {
+            members = members.concat(r);
+          }
+        }
+      }
+    } else {
+      members = buttons;
+    }
+    this.targets = new Group(members, { ...this.propsAsObject, Cycles: 1 });
+    this.stack = [
+      {
+        group: this.targets,
+        cue: this.Cue.value,
+        index: this.StartVisible.value ? 0 : -1,
+      },
+    ];
+    this.cue();
+
+    // stop any running animations
+    animationNonce += 1;
+  }
+
+  /**
+   * Current keeps track of the currently active node or group
+   *
+   * @type {Target | undefined}
+   */
+  get current() {
+    const { group, index } = this.stack[0];
+    return group.member(index);
+  }
+
+  next() {
+    const top = this.stack[0];
+    if (top.index < top.group.length - 1) {
+      top.index++;
+    } else if (this.stack.length > 1) {
+      this.stack.shift();
+    } else if (this.stack.length == 1) {
+      top.index = 0;
+    } else ;
+    this.cue();
+  }
+
+  /** @param {EventLike} event */
+  activate(event) {
+    const target = event.target;
+    if (target) {
+      // adjust the stack to accomodate the target
+      for (;;) {
+        const top = this.stack[0];
+        const newIndex = top.group.members.indexOf(target);
+        if (newIndex >= 0) {
+          top.index = newIndex;
+          break;
+        }
+        if (this.stack.length == 1) {
+          top.index = 0;
+          break;
+        } else {
+          this.stack.shift();
+        }
+      }
+    }
+    let current = this.current;
+    if (!current) return;
+    while (current instanceof Group && current.members.length == 1) {
+      // manage currentCue while we walk through singleton groups
+      current = current.members[0];
+    }
+    if (current instanceof Group) {
+      // I need to work out the index here. Should be the group under the pointer
+      this.stack.unshift({
+        group: current,
+        cue: current.access.Cue,
+        index: event?.groupIndex || 0,
+      });
+    } else if (current instanceof HTMLButtonElement) {
+      // In the designer a click selects a piece (layout.js) or edits a
+      // grid word (grid.js) instead of pressing it; Preview is where the
+      // board gets tried out. Tabs still switch, so each can be edited.
+      if (Globals.state.get("editing") && !current.hasAttribute("click")) {
+        this.cue();
+        return;
+      }
+      if (current.hasAttribute("click")) {
+        current.dispatchEvent(new Event("Activate"));
+      } else {
+        const name = current.dataset.ComponentName;
+        Globals.actions.applyRules(name || "", "press", { ...current.dataset });
+      }
+    }
+    this.cue();
+  }
+
+  clearCue() {
+    this.cued = false;
+    clearCues();
+  }
+
+  cue() {
+    this.clearCue();
+    const current = this.current;
+    if (!current) return;
+    this.cued = true;
+    cueTarget(current, this.stack[0].cue);
+  }
+
+  /** Return the access info for current
+   */
+  getCurrentAccess() {
+    const current = this.current;
+    if (!current) return {};
+    if (current instanceof HTMLButtonElement) {
+      return current.dataset;
+    } else if (current instanceof Group) {
+      return { ...current.access };
+    }
+    return {};
+  }
+
+  /** Map the event target to a group
+   * @param {EventLike} event
+   * @returns {EventLike}
+   */
+  remapEventTarget(event) {
+    event = {
+      type: event.type,
+      target: event.target,
+      timeStamp: event.timeStamp,
+    };
+    if (event.target instanceof HTMLButtonElement) {
+      event.access = event.target.dataset;
+    }
+    if (!event.target) return event;
+    event.originalTarget = event.target;
+    for (let level = 0; level < this.stack.length; level++) {
+      const group = this.stack[level].group;
+      const members = group.members;
+      // first scan to see if the element is top level in this group
+      let index = members.indexOf(event.target);
+      if (index >= 0) {
+        if (level === 0) {
+          return event;
+        } else {
+          return {
+            ...event,
+            target: group,
+            groupIndex: index,
+            access: { ...event.access, ...group.access },
+          };
+        }
+      } else if (event.target instanceof HTMLButtonElement) {
+        // otherwise check to see if any group members contain it
+        for (index = 0; index < members.length; index++) {
+          const member = members[index];
+          if (member instanceof Group) {
+            let i = member.contains(event.target);
+            if (i >= 0) {
+              return {
+                ...event,
+                target: member,
+                groupIndex: i,
+                access: { ...event.access, ...member.access },
+              };
+            }
+          }
+        }
+      }
+    }
+    return event;
+  }
+
+  async animate() {
+    /** @param {Group} group
+     * @param {string} cue
+     */
+    function* animateGroup(group, cue) {
+      const cycles = +group.access.Cycles;
+      const groupTime = 500;
+      const buttonTime = Math.max(
+        100,
+        Math.min(500, 600 / group.members.length),
+      );
+      for (let cycle = 0; cycle < cycles; cycle++) {
+        for (const member of group.members) {
+          cueTarget(member, cue);
+          yield new Promise((resolve) =>
+            setTimeout(
+              resolve,
+              member instanceof Group ? groupTime : buttonTime,
+            ),
+          );
+          clearCues();
+          if (member instanceof Group) {
+            yield* animateGroup(member, cue);
+          }
+        }
+      }
+    }
+    this.clearCue();
+    this.refresh();
+
+    // kill any running animations and save the new value
+    let nonce = ++animationNonce;
+
+    for (const promise of animateGroup(this.targets, this.Cue.value)) {
+      await promise;
+      // quit if the animationNonce changes
+      if (nonce !== animationNonce) return;
+    }
+  }
+}
+PatternBase.register(PatternManager, "PatternManager");
+
+const nullPatternManager = TreeBase.create(PatternManager);
+
+class PatternGroup extends PatternBase {
+  // props
+  Name = new String$1("");
+  Cycles = new Integer(2, { min: 1 });
+  Cue = new Cue$1({ defaultValue: "DefaultCue" });
+
+  allowedChildren = ["PatternGroup", "PatternSelector"];
+
+  settings() {
+    const { Name, Cycles, Cue } = this;
+    return html`<fieldset class=${this.className} tabindex="0" id=${this.id}>
+      <legend>Group: ${Name.value}</legend>
+      ${Name.input()} ${Cycles.input()} ${Cue.input()} ${this.orderedChildren()}
+    </fieldset>`;
+  }
+
+  /**
+   * Build a group from the output of the selectors applied to the input
+   *
+   * @param {Target[]} input
+   */
+  apply(input) {
+    let members = [];
+    for (const child of this.children) {
+      const r = child.apply(input);
+      if (r.length > 0) {
+        if (r instanceof Group) {
+          members.push(r);
+        } else {
+          members = members.concat(r);
+        }
+      }
+    }
+    if (members.length > 0) return [new Group(members, this.propsAsObject)];
+    else return [];
+  }
+}
+PatternBase.register(PatternGroup, "PatternGroup");
+
+class PatternSelector extends PatternBase {
+  allowedChildren = ["Filter", "GroupBy", "OrderBy"];
+  settings() {
+    return html`<fieldset class=${this.className} tabindex="0" id=${this.id}>
+      <legend>Selector</legend>
+      ${this.unorderedChildren()}
+    </fieldset>`;
+  }
+
+  /**
+   * Select buttons from the input
+   *
+   * @param {Target[]} input
+   * @returns {Target[]}
+   */
+  apply(input) {
+    return this.children.reduce(
+      (previous, operator) => operator.apply(previous),
+      input,
+    );
+  }
+}
+PatternBase.register(PatternSelector, "PatternSelector");
+
+class Filter extends PatternBase {
+  Filter = new Expression();
+  settings() {
+    const { Filter } = this;
+    return html`<div class=${this.className} tabindex="0" id=${this.id}>
+      ${Filter.input()}
+    </div>`;
+  }
+  /**
+   * Select buttons from the input
+   *
+   * @param {Target[]} input
+   * @returns {Target[]}
+   */
+  apply(input) {
+    if (input[0] instanceof Group) {
+      return input
+        .map(
+          (/** @type {Group} */ group) =>
+            new Group(this.apply(group.members), group.access),
+        )
+        .filter((target) => target.length > 0);
+    } else {
+      return input.filter((/** @type {HTMLButtonElement} */ button) =>
+        this.Filter.valueInContext({ data: button.dataset }),
+      );
+    }
+  }
+}
+PatternBase.register(Filter, "Filter");
+
+// allow the sort to handle numbers reasonably
+const comparator = new Intl.Collator(undefined, {
+  numeric: true,
+});
+
+class OrderBy extends PatternBase {
+  OrderBy = new Field();
+  settings() {
+    const { OrderBy } = this;
+    return html`<div class=${this.className} tabindex="0" id=${this.id}>
+      ${OrderBy.input()}
+    </div>`;
+  }
+  /**
+   * Select buttons from the input
+   *
+   * @param {Target[]} input
+   * @returns {Target[]}
+   */
+  apply(input) {
+    if (input[0] instanceof Group) {
+      return input
+        .map(
+          (/** @type {Group} */ group) =>
+            new Group(this.apply(group.members), group.access),
+        )
+        .filter((target) => target.length > 0);
+    } else {
+      const key = this.OrderBy.value.slice(1);
+      return [.../** @type {HTMLButtonElement[]} */ (input)].sort((a, b) =>
+        comparator.compare(a.dataset[key] || "", b.dataset[key] || ""),
+      );
+    }
+  }
+}
+PatternBase.register(OrderBy, "OrderBy");
+
+class GroupBy extends PatternBase {
+  GroupBy = new Field();
+  Name = new String$1("");
+  Cue = new Cue$1({ defaultValue: "DefaultCue" });
+  Cycles = new Integer(2);
+  settings() {
+    const { GroupBy, Name, Cue, Cycles } = this;
+    const fields = toMap([
+      ...new Set([
+        ...Globals.data.allFields,
+        "#ComponentName",
+        "#row",
+        "#column",
+      ]),
+    ]);
+    return html`<div class=${this.className} tabindex="0" id=${this.id}>
+      ${GroupBy.input(fields)} ${Name.input()} ${Cue.input()} ${Cycles.input()}
+    </div>`;
+  }
+  /**
+   * Select buttons from the input
+   *
+   * @param {Target[]} input
+   * @returns {Target[]}
+   */
+  apply(input) {
+    if (input[0] instanceof Group) {
+      return input
+        .map(
+          (/** @type {Group} */ group) =>
+            new Group(this.apply(group.members), group.access),
+        )
+        .filter((target) => target.length > 0);
+    } else {
+      const { GroupBy, Name, ...props } = this.propsAsObject;
+      const key = GroupBy.slice(1);
+      const result = [];
+      const groupMap = new Map();
+      for (const button of /** @type {HTMLButtonElement[]} */ (input)) {
+        let k = button.dataset[key] || "";
+        // if (!k) continue;
+        k = k.toString();
+        // we got a key, check to see if we have a group
+        let group = groupMap.get(k);
+        if (!group) {
+          // no group, create one and add it to the map and the result
+          group = new Group([button], {
+            GroupName: Name.replace(GroupBy, k),
+            [key]: k,
+            ...props,
+          });
+          groupMap.set(k, group);
+          result.push(group);
+        } else {
+          group.members.push(button);
+        }
+      }
+      if (result.length === 1) {
+        return result[0].members;
+      }
+      return result;
+    }
+  }
+}
+PatternBase.register(GroupBy, "GroupBy");
+
 /**
  * The pieces a student builds a board from in the Layout tab — a message
  * bar, a word grid, a button and tabs — and the plumbing that makes each
@@ -18478,8 +19548,9 @@ function gridSpec() {
     className: "Grid",
     props: {
       name: uniqueName("grid"),
-      rows: "3",
-      columns: "4",
+      // small to start; it grows as words are typed (grid.js)
+      rows: "2",
+      columns: "3",
       fillItems: "true",
       background: "white",
       scale: String(defaultScale.grid),
@@ -18579,11 +19650,43 @@ function isFlexContainer(node) {
  * @returns {TreeBase} the component to select afterwards
  */
 function addPiece(kind, anchor = null, side = "below") {
+  const created = TreeBase.fromObject(spec(kind), null);
+  place(created, anchor, side, kind === "clear");
+  if (kind === "tabs") {
+    for (const label of ["Tab 1", "Tab 2"]) {
+      TreeBase.fromObject(tabSpec(label), created);
+    }
+  }
+  setUp(allComponents(created));
+  Globals.layout.update();
+  // select the part a student would change next
+  return created.className === "Stack" ? created.children[0] : created;
+}
+
+/** A message bar and a word grid below it, ready to use: the quickest
+ * start on an empty board
+ * @returns {TreeBase} the grid, to type words into */
+function addTalkingBoard() {
+  const display = addPiece("message");
+  return addPiece("grid", display, "below");
+}
+
+/**
+ * Put a component (not on the board) next to an anchor, or at the end of
+ * the page without one, wrapping the anchor in a new row or column when
+ * the side needs it.
+ * @param {TreeBase} node
+ * @param {TreeBase | null} anchor
+ * @param {"above" | "below" | "left" | "right" | "inside"} side
+ * @param {boolean} [intoMessageBar] - next to the display itself rather
+ *   than next to the whole message bar (for its Clear button)
+ */
+function place(node, anchor, side, intoMessageBar = false) {
   let container = page();
   let index = container.children.length;
 
   // next to a message bar means next to it and its Clear button together
-  if (anchor && kind !== "clear" && side !== "inside") {
+  if (anchor && !intoMessageBar && side !== "inside") {
     anchor = messageBar(anchor) ?? anchor;
   }
 
@@ -18607,18 +19710,38 @@ function addPiece(kind, anchor = null, side = "below") {
       index = after;
     }
   }
+  container.children.splice(index, 0, node);
+  node.parent = container;
+}
 
-  const created = TreeBase.fromObject(spec(kind), container);
-  created.moveTo(index);
-  if (kind === "tabs") {
-    for (const label of ["Tab 1", "Tab 2"]) {
-      TreeBase.fromObject(tabSpec(label), created);
-    }
-  }
-  setUp(allComponents(created));
+/**
+ * Move a piece next to another one (dragging it on the board)
+ * @param {TreeBase} component
+ * @param {TreeBase} target
+ * @param {"above" | "below" | "left" | "right" | "inside"} side
+ */
+function movePieceTo(component, target, side) {
+  const unit = messageBar(component) ?? component;
+  if (!canDropOn(component, target)) return;
+  const from = /** @type {TreeBase} */ (unit.parent);
+  from.children.splice(unit.index, 1);
+  unit.parent = undefined;
+  place(unit, target, side);
+  tidy(from);
   Globals.layout.update();
-  // select the part a student would change next
-  return created.className === "Stack" ? created.children[0] : created;
+}
+
+/** True when a piece can be dropped next to (or into) a target: not on
+ * itself, its own message bar, or anything inside it
+ * @param {TreeBase} component
+ * @param {TreeBase} target */
+function canDropOn(component, target) {
+  const unit = messageBar(component) ?? component;
+  const anchor = messageBar(target) ?? target;
+  for (let node = /** @type {TreeBase | undefined} */ (anchor); node; node = node.parent) {
+    if (node === unit) return false;
+  }
+  return true;
 }
 
 /** Put a component in a new row (or column) that takes its place
@@ -18742,6 +19865,13 @@ function removePiece(component) {
   target.remove();
   tidy(container);
   Globals.layout.update();
+}
+
+/** What moves and gets added next to as one: a message bar together
+ * with its Clear button, otherwise the component itself
+ * @param {TreeBase} component */
+function pieceUnit(component) {
+  return messageBar(component) ?? component;
 }
 
 /** The row holding a message bar and its Clear button, if that is what
@@ -18868,133 +19998,6 @@ function separateGrids(newGrids) {
   }
 }
 
-/**
- * The Layout tab's "Find pictures" view for one word grid: every word
- * with a few matching symbols to pick from (pictograms.js), so a whole
- * grid gets pictures in a few clicks.
- */
-class PictureChooser {
-  /** @type {Map<string, string[]>} label → picture choices */
-  choices = new Map();
-  loading = true;
-  usedAI = false;
-
-  /**
-   * @param {import("./treebase").TreeBase} grid
-   * @param {() => void} close
-   */
-  constructor(grid, close) {
-    this.grid = grid;
-    this.close = close;
-    this.load();
-  }
-
-  /** The grid's own words (not predictions or notes), in board order */
-  rows() {
-    const { data } = Globals;
-    return data
-      .getMatchingRows(
-        /** @type {import("./gridFilter").GridFilter[]} */ (this.grid.children),
-        false,
-      )
-      .filter((row) => row.label && data.contentRows.includes(row));
-  }
-
-  async load() {
-    const labels = [...new Set(this.rows().map((row) => String(row.label)))];
-    const { choices, usedAI } = await pictureChoices(labels);
-    this.choices = choices;
-    this.usedAI = usedAI;
-    this.loading = false;
-    Globals.state.update();
-  }
-
-  /** Give a word this picture, or none
-   * @param {Row} row
-   * @param {string} symbol */
-  async choose(row, symbol) {
-    const { data } = Globals;
-    const rows = [...data.contentRows];
-    const index = rows.indexOf(row);
-    if (index < 0) return;
-    const { symbol: _old, ...rest } = row;
-    rows[index] = symbol ? { ...rest, symbol } : rest;
-    data.setContent(rows);
-    await db.write("content", rows);
-    Globals.state.update();
-  }
-
-  template() {
-    const rows = this.rows();
-    let status;
-    if (!rows.length) {
-      status = html`<p class="piece-hint">
-        This grid has no words yet. Type some on the board first.
-      </p>`;
-    } else if (this.loading) {
-      status = html`<p class="piece-hint" aria-live="polite">
-        ${aiReady() ? "Asking the AI and finding pictures…" : "Finding pictures…"}
-      </p>`;
-    } else if (this.usedAI) {
-      status = html`<p class="piece-hint">
-        The AI chose what to look for; the pictures are free ARASAAC symbols.
-      </p>`;
-    } else {
-      status = html`<p class="piece-hint">
-        Matched by the words themselves. Set up an AI service (Content tab →
-        Generate with AI) for smarter matches on phrases.
-      </p>`;
-    }
-
-    return html`<div class="piece-inspector picture-chooser">
-      <div class="piece-title">
-        <h3>✨ Pictures for this grid</h3>
-        <button class="piece-done" @click=${this.close}>Back</button>
-      </div>
-      <p class="piece-hint">Click a picture to use it for that word.</p>
-      ${status}
-      <ul class="picture-list">
-        ${rows.map((row) => {
-          const options = this.choices.get(String(row.label)) ?? [];
-          const current = String(row.symbol ?? "");
-          return html`<li>
-            <div class="picture-word">
-              <span class="picture-current">
-                ${current ? imageOrVideo(current, String(row.label)) : html`<span>—</span>`}
-              </span>
-              <strong>${row.label}</strong>
-            </div>
-            <div class="picture-options">
-              ${options.map(
-                (url) => html`<button
-                  class=${url === current ? "picture-option chosen" : "picture-option"}
-                  aria-pressed=${url === current}
-                  title=${`Use this picture for “${row.label}”`}
-                  @click=${() => this.choose(row, url)}
-                >
-                  <img src=${url} alt="" loading="lazy" />
-                </button>`,
-              )}
-              ${current
-                ? html`<button
-                    class="picture-option picture-none"
-                    title="No picture"
-                    @click=${() => this.choose(row, "")}
-                  >
-                    None
-                  </button>`
-                : html``}
-              ${!this.loading && !options.length
-                ? html`<span class="piece-hint">No match found</span>`
-                : html``}
-            </div>
-          </li>`;
-        })}
-      </ul>
-    </div>`;
-  }
-}
-
 // map old names to new for the transition
 const typeToClassName = {
   audio: "Audio",
@@ -19033,12 +20036,6 @@ class Layout extends DesignerPanel {
    * @type {{anchor: TreeBase | null, side: "above" | "below" | "left" | "right" | "inside"} | null} */
   _adding = null;
 
-  /** Whether the full component tree is showing */
-  _showTree = false;
-
-  /** The "Find pictures" view, while it is open
-   * @type {PictureChooser | null} */
-  _pictures = null;
 
   /** The selected piece, if it is still on the board */
   get selected() {
@@ -19054,7 +20051,6 @@ class Layout extends DesignerPanel {
     if (component === this.selected) return;
     this._selected = component;
     this._adding = null;
-    this._pictures = null;
     // show the Layout tab, without moving focus off the board (a click
     // on an empty square there opens a text box)
     const designer = Globals.designer;
@@ -19063,32 +20059,18 @@ class Layout extends DesignerPanel {
   }
 
   settings() {
-    const self = this;
-    return html`<div
-      class=${this.CSSClasses("layout")}
-      help="Layout tab"
-      id=${this.id}
-      @keydown=${(/** @type {KeyboardEvent} */ event) => {
-        const { key, ctrlKey } = event;
-        if ((key == "H" || key == "h") && ctrlKey) {
-          event.preventDefault();
-          this.highlight();
-        }
-      }}
-    >
+    return html`<div class=${this.CSSClasses("layout")} help="Layout tab" id=${this.id}>
       ${this.simpleView()}
-      <details
-        class="layout-tree"
-        ?open=${this._showTree}
-        @toggle=${(/** @type {Event} */ e) => {
-          this._showTree = /** @type {HTMLDetailsElement} */ (e.target).open;
-        }}
-      >
-        <summary>All components (advanced)</summary>
-      <details class="panel-help">
-        <summary>About the Layout tab</summary>
+    </div>`;
+  }
+
+  /** The full component tree, shown in the Advanced → Components tab
+   * @param {string} rootId - the id of the element holding it */
+  treeView(rootId) {
+    return html`<details class="panel-help">
+        <summary>About the Components tab</summary>
         <div class="panel-help-body">
-          <p>The full tree of every component on the board — pages, containers, buttons, displays, and more. For everyday building, use the pieces above instead.</p>
+          <p>The full tree of every component on the board — pages, containers, buttons, displays, and more. For everyday building, use the Layout tab instead.</p>
           <ul>
             <li>Expand any item to edit its properties.</li>
             <li>Use the <strong>＋ Add…</strong> selector inside a component to add children (Stacks, Grids, Buttons, etc.).</li>
@@ -19106,14 +20088,12 @@ class Layout extends DesignerPanel {
           .value=${this._searchQuery}
           @input=${(/** @type {InputEvent} */ e) => {
             const input = /** @type {HTMLInputElement} */ (e.target);
-            self._searchQuery = input.value;
-            self._applySearch(input.value);
+            this._searchQuery = input.value;
+            this._applySearch(input.value, rootId);
           }}
         />
       </div>
-      ${this.children[0].settings()}
-      </details>
-    </div>`;
+      ${this.children[0].settings()}`;
   }
 
   /** The plain-language editor: add pieces, and change the one clicked */
@@ -19132,9 +20112,7 @@ class Layout extends DesignerPanel {
     ></style>`;
 
     let body;
-    if (this._pictures && selected === this._pictures.grid) {
-      body = this._pictures.template();
-    } else if (this._adding) {
+    if (this._adding) {
       body = this.addMenu();
     } else if (selected) {
       body = this.inspector(selected);
@@ -19142,9 +20120,11 @@ class Layout extends DesignerPanel {
       this._adding = { anchor: null, side: "below" };
       body = this.addMenu();
     } else {
-      const hasGrid = hasWordGrid(page);
-      body = html`${hasGrid ? howToFill() : html``}
-        <p class="piece-hint">Click a piece on the board to change it.</p>
+      body = html`${hasWordGrid(page) ? howToFill() : html``}
+        <p class="piece-hint">
+          Click a piece on the board to change it. Use the + buttons around
+          it to add a piece next to it.
+        </p>
         <button
           class="piece-action"
           @click=${() => {
@@ -19169,8 +20149,22 @@ class Layout extends DesignerPanel {
         : `${adding.side === "above" || adding.side === "below" ? adding.side : "to the " + adding.side} of the ${pieceLabel(adding.anchor).toLowerCase()}`
       : "";
     return html`<h3 class="piece-heading">
-        ${empty ? "Your board is empty. Add a first piece:" : `Add a piece ${where}`}
+        ${empty ? "Your board is empty. What do you want to start with?" : `Add a piece ${where}`}
       </h3>
+      ${empty
+        ? html`<button
+            class="piece-choice piece-choice-main"
+            @click=${() => {
+              this._adding = null;
+              this._selected = addTalkingBoard();
+            }}
+          >
+            <span class="piece-icon" aria-hidden="true">💬▦</span>
+            <strong>Talking board</strong>
+            <span>A message bar with a word grid below it, ready to type words into.</span>
+          </button>
+          <p class="piece-hint">Or start with one piece:</p>`
+        : html``}
       <div class="piece-menu">
         ${pieceKinds.map(
           (piece) => html`<button
@@ -19187,9 +20181,7 @@ class Layout extends DesignerPanel {
         )}
       </div>
       ${empty
-        ? html`<p class="piece-hint">
-            Tip: start with a Message bar, then add a Word grid below it.
-          </p>`
+        ? html``
         : html`<button
             class="piece-action"
             @click=${() => {
@@ -19204,11 +20196,6 @@ class Layout extends DesignerPanel {
   /** Settings for the selected piece
    * @param {TreeBase} piece */
   inspector(piece) {
-    /** @param {"above" | "below" | "left" | "right" | "inside"} side */
-    const startAdding = (side) => {
-      this._adding = { anchor: piece, side };
-      Globals.state.update();
-    };
     /** @type {["above" | "below" | "left" | "right", string][]} */
     const sides = [
       ["above", "↑ Up"],
@@ -19218,6 +20205,22 @@ class Layout extends DesignerPanel {
     ];
     const isTab = piece.className === "TabPanel";
     const canRemove = !isTab || (piece.parent?.children.length ?? 0) > 1;
+    const moveButtons = isTab
+      ? html``
+      : html`<div class="piece-add">
+          <span>Move it (or drag ⠿ on the board):</span>
+          <div class="piece-sides">
+            ${sides.map(
+              ([side, label]) => html`<button
+                ?disabled=${!moveTarget(piece, side)}
+                aria-label=${`Move ${side === "above" ? "up" : side === "below" ? "down" : side}`}
+                @click=${() => movePiece(piece, side)}
+              >
+                ${label}
+              </button>`,
+            )}
+          </div>
+        </div>`;
     return html`<div class="piece-inspector">
       <div class="piece-title">
         <h3>${pieceLabel(piece)}${isTab ? `: ${piece["label"].value}` : ""}</h3>
@@ -19230,35 +20233,27 @@ class Layout extends DesignerPanel {
         </button>
       </div>
       ${this.pieceSettings(piece)}
+      ${isTab && !piece.children.length
+        ? html`<button
+            class="piece-action"
+            @click=${() => {
+              this._adding = { anchor: piece, side: "inside" };
+              Globals.state.update();
+            }}
+          >
+            + Add a piece inside this tab
+          </button>`
+        : html``}
       ${isTab
-        ? piece.children.length
-          ? html``
-          : html`<button class="piece-action" @click=${() => startAdding("inside")}>
-              + Add a piece inside this tab
-            </button>`
-        : html`<div class="piece-add">
-            <span>Move it:</span>
-            <div class="piece-sides">
-              ${sides.map(
-                ([side, label]) => html`<button
-                  ?disabled=${!moveTarget(piece, side)}
-                  aria-label=${`Move ${side === "above" ? "up" : side === "below" ? "down" : side}`}
-                  @click=${() => movePiece(piece, side)}
-                >
-                  ${label}
-                </button>`,
-              )}
-            </div>
-          </div>
-          <div class="piece-add">
-            <span>Add a piece next to it:</span>
-            <div class="piece-sides">
-              <button @click=${() => startAdding("above")} aria-label="Add above">↑ Above</button>
-              <button @click=${() => startAdding("below")} aria-label="Add below">↓ Below</button>
-              <button @click=${() => startAdding("left")} aria-label="Add to the left">← Left</button>
-              <button @click=${() => startAdding("right")} aria-label="Add to the right">→ Right</button>
-            </div>
-          </div>`}
+        ? html``
+        : html`<p class="piece-hint">
+            Use the + buttons around it on the board to add a piece next to
+            it, and drag the grey bars between pieces to resize them.
+          </p>`}
+      <details class="piece-more">
+        <summary>More options</summary>
+        ${this.moreSettings(piece)} ${moveButtons}
+      </details>
       ${canRemove
         ? html`<button
             class="piece-action piece-remove"
@@ -19271,29 +20266,65 @@ class Layout extends DesignerPanel {
             ${isTab ? "Remove this tab" : "Remove from the board"}
           </button>`
         : html``}
-      <p class="piece-hint">Drag the grey bars between pieces on the board to resize them.</p>
     </div>`;
+  }
+
+  /** The settings few people need, folded under "More options"
+   * @param {TreeBase} piece */
+  moreSettings(piece) {
+    if (piece.className !== "Grid") return html``;
+    const fill = piece["fillItems"];
+    /** @param {string} label @param {any} prop */
+    const number = (label, prop) => html`<label class="piece-field">
+      <span>${label}</span>
+      <input
+        type="number"
+        min="1"
+        max="12"
+        .value=${String(prop.value)}
+        @change=${(/** @type {Event} */ e) => {
+          const input = /** @type {HTMLInputElement} */ (e.target);
+          prop.set(Math.min(12, Math.max(1, Math.round(+input.value || 1))));
+          piece.update();
+        }}
+      />
+    </label>`;
+    return html`<p class="piece-hint">
+        The grid grows by itself as you add words. To set its size yourself:
+      </p>
+      ${number("Rows", piece["rows"])} ${number("Columns", piece["columns"])}
+      <fieldset class="piece-field">
+        <legend>Words go</legend>
+        <label
+          ><input
+            type="radio"
+            name=${piece.id + "-fill"}
+            ?checked=${fill.value}
+            @change=${() => {
+              fill.set(true);
+              piece.update();
+            }}
+          />
+          in order, filling each row</label
+        >
+        <label
+          ><input
+            type="radio"
+            name=${piece.id + "-fill"}
+            ?checked=${!fill.value}
+            @change=${() => {
+              fill.set(false);
+              piece.update();
+            }}
+          />
+          in the square I click</label
+        >
+      </fieldset>`;
   }
 
   /** The few settings that matter for each kind of piece
    * @param {TreeBase} piece */
   pieceSettings(piece) {
-    /** @param {string} label @param {any} prop @param {number} min @param {number} max */
-    const number = (label, prop, min, max) => html`<label class="piece-field">
-      <span>${label}</span>
-      <input
-        type="number"
-        min=${min}
-        max=${max}
-        .value=${String(prop.value)}
-        @change=${(/** @type {Event} */ e) => {
-          const input = /** @type {HTMLInputElement} */ (e.target);
-          const value = Math.min(max, Math.max(min, Math.round(+input.value || min)));
-          prop.set(value);
-          piece.update();
-        }}
-      />
-    </label>`;
     /** @param {string} label @param {any} prop */
     const text = (label, prop) => html`<label class="piece-field">
       <span>${label}</span>
@@ -19308,50 +20339,8 @@ class Layout extends DesignerPanel {
     </label>`;
 
     switch (piece.className) {
-      case "Grid": {
-        const fill = piece["fillItems"];
-        const findPictures = html`<button
-          class="piece-action piece-ai"
-          @click=${() => {
-            this._pictures = new PictureChooser(piece, () => {
-              this._pictures = null;
-              Globals.state.update();
-            });
-            Globals.state.update();
-          }}
-        >
-          ✨ Let AI pick pictures
-        </button>`;
-        return html`${howToFill(findPictures)} ${number("Rows", piece["rows"], 1, 12)}
-          ${number("Columns", piece["columns"], 1, 12)}
-          <fieldset class="piece-field">
-            <legend>Words go</legend>
-            <label
-              ><input
-                type="radio"
-                name=${piece.id + "-fill"}
-                ?checked=${fill.value}
-                @change=${() => {
-                  fill.set(true);
-                  piece.update();
-                }}
-              />
-              in order, filling each row</label
-            >
-            <label
-              ><input
-                type="radio"
-                name=${piece.id + "-fill"}
-                ?checked=${!fill.value}
-                @change=${() => {
-                  fill.set(false);
-                  piece.update();
-                }}
-              />
-              in the square I click</label
-            >
-          </fieldset>`;
-      }
+      case "Grid":
+        return howToFill();
       case "Display": {
         const size = piece["fontSize"];
         const sizes = [
@@ -19420,7 +20409,7 @@ class Layout extends DesignerPanel {
         })}`;
       default:
         return html`<p class="piece-hint">
-          This piece's settings are in “All components (advanced)” below.
+          This piece's settings are in Advanced → Components.
         </p>`;
     }
   }
@@ -19428,9 +20417,10 @@ class Layout extends DesignerPanel {
   /**
    * Show/hide .settings elements based on search query
    * @param {string} query
+   * @param {string} rootId - the element holding the tree
    */
-  _applySearch(query) {
-    const panel = document.getElementById(this.id);
+  _applySearch(query, rootId) {
+    const panel = document.getElementById(rootId);
     if (!panel) return;
     const q = query.trim().toLowerCase();
     const allSettings = /** @type {NodeListOf<HTMLElement>} */ (
@@ -19587,6 +20577,238 @@ class Layout extends DesignerPanel {
 }
 TreeBase.register(Layout, "Layout");
 
+/** The full component tree, as a tab of its own under Advanced, so the
+ * Layout tab stays simple */
+class ComponentsPanel extends DesignerPanel {
+  settings() {
+    return html`<div
+      class=${this.CSSClasses("layout components")}
+      help="Components tab"
+      id=${this.id}
+      @keydown=${(/** @type {KeyboardEvent} */ event) => {
+        if (event.key.toLowerCase() == "h" && event.ctrlKey) {
+          event.preventDefault();
+          Globals.layout.highlight();
+        }
+      }}
+    >
+      ${Globals.layout.treeView(this.id)}
+    </div>`;
+  }
+
+  // the tree is the layout's, and so is its undo history
+  async undo() {
+    await Globals.layout.undo();
+  }
+
+  async redo() {
+    await Globals.layout.redo();
+  }
+}
+TreeBase.register(ComponentsPanel, "ComponentsPanel");
+
+// ── On the board: + buttons around the selected piece, and a grip to drag
+// it somewhere else (designer only) ──────────────────────────────────────
+
+/** @typedef {"above" | "below" | "left" | "right"} Side */
+
+/** The side whose piece menu is open, and the piece it is for */
+let overlayMenu = /** @type {Side | null} */ (null);
+let overlayFor = /** @type {TreeBase | null} */ (null);
+
+/** @param {string} id */
+function fixedElement(id) {
+  let element = document.getElementById(id);
+  if (!element) {
+    element = document.createElement("div");
+    element.id = id;
+    document.body.append(element);
+  }
+  return element;
+}
+
+/** Draw the + buttons and grip over the selected piece */
+function drawOverlay() {
+  const overlay = fixedElement("piece-overlay");
+  const layout = Globals.layout;
+  const piece = Globals.state?.get("editing") ? layout?.selected : null;
+  const unit = piece && pieceUnit(piece);
+  const element = unit && document.getElementById(unit.id);
+  if (!piece || !element || piece.className === "TabPanel" || layout._adding) {
+    overlay.hidden = true;
+    overlayMenu = null;
+    return;
+  }
+  if (overlayFor !== piece) {
+    overlayMenu = null;
+    overlayFor = piece;
+  }
+  const box = element.getBoundingClientRect();
+  overlay.hidden = false;
+  Object.assign(overlay.style, {
+    left: `${box.left}px`,
+    top: `${box.top}px`,
+    width: `${box.width}px`,
+    height: `${box.height}px`,
+  });
+  /** @type {[Side, string][]} */
+  const sides = [
+    ["above", "Add a piece above"],
+    ["below", "Add a piece below"],
+    ["left", "Add a piece to the left"],
+    ["right", "Add a piece to the right"],
+  ];
+  // each + sits on the middle of its edge, in the gap between pieces, and
+  // moves in only where the piece meets the edge of the board
+  const board = document.getElementById("UI")?.getBoundingClientRect() ?? box;
+  const size = 24;
+  const half = size / 2;
+  /** @param {number} at @param {number} least @param {number} most */
+  const clamp = (at, least, most) => Math.min(Math.max(at, least), most);
+  const across = (/** @type {number} */ length) => length / 2 - half;
+  const minX = board.left + 2 - box.left;
+  const maxX = board.right - size - 2 - box.left;
+  const minY = board.top + 2 - box.top;
+  const maxY = board.bottom - size - 2 - box.top;
+  /** @type {Record<Side, {left: number, top: number}>} */
+  const spots = {
+    above: { left: across(box.width), top: clamp(-half, minY, maxY) },
+    below: { left: across(box.width), top: clamp(box.height - half, minY, maxY) },
+    left: { left: clamp(-half, minX, maxX), top: across(box.height) },
+    right: { left: clamp(box.width - half, minX, maxX), top: across(box.height) },
+  };
+  const menu = overlayMenu
+    ? html`<div class=${`overlay-menu ${overlayMenu}`} role="menu">
+        ${pieceKinds.map(
+          (kind) => html`<button
+            role="menuitem"
+            @click=${() => {
+              const side = /** @type {Side} */ (overlayMenu);
+              overlayMenu = null;
+              layout._selected = addPiece(kind.kind, piece, side);
+            }}
+          >
+            <span aria-hidden="true">${kind.icon}</span> ${kind.label}
+          </button>`,
+        )}
+      </div>`
+    : html``;
+  render(
+    overlay,
+    html`${sides.map(
+        ([side, label]) => html`<button
+          class=${`overlay-add ${side}${overlayMenu === side ? " open" : ""}`}
+          style=${`left: ${spots[side].left}px; top: ${spots[side].top}px`}
+          aria-label=${label}
+          title=${label}
+          aria-expanded=${overlayMenu === side}
+          @click=${() => {
+            overlayMenu = overlayMenu === side ? null : side;
+            Globals.state.update();
+          }}
+        >
+          +
+        </button>`,
+      )}
+      <button
+        class=${box.top > 30 ? "overlay-grip" : "overlay-grip inside"}
+        title="Drag to move it"
+        aria-label="Drag to move it"
+        @pointerdown=${(/** @type {PointerEvent} */ e) => startDrag(e, piece)}
+      >
+        ⠿ Move
+      </button>
+      ${menu}`,
+  );
+}
+
+/**
+ * Drag the selected piece by its grip; dropping it on another piece puts
+ * it on the side of that piece nearest the pointer.
+ * @param {PointerEvent} event
+ * @param {TreeBase} piece
+ */
+function startDrag(event, piece) {
+  if (!event.isPrimary) return;
+  event.preventDefault();
+  const board = document.getElementById("UI");
+  const indicator = fixedElement("piece-drop");
+  indicator.hidden = true;
+  document.body.classList.add("piece-dragging");
+  clearCues(); // no hover highlight left on the board while dragging
+  overlayMenu = null;
+  /** @type {{target: TreeBase, side: Side | "inside"} | null} */
+  let drop = null;
+
+  const move = (/** @type {PointerEvent} */ e) => {
+    e.stopPropagation(); // the board doesn't react while a piece is dragged
+    const under = document
+      .elementsFromPoint(e.clientX, e.clientY)
+      .find((el) => board?.contains(el));
+    const target = under ? pieceAt(under) : null;
+    const element = target && document.getElementById(pieceUnit(target).id);
+    if (!target || !element || !canDropOn(piece, target)) {
+      drop = null;
+      indicator.hidden = true;
+      return;
+    }
+    const box = element.getBoundingClientRect();
+    /** @type {Side | "inside"} */
+    let side = "inside";
+    if (target.className !== "TabPanel") {
+      const x = (e.clientX - box.left) / box.width;
+      const y = (e.clientY - box.top) / box.height;
+      /** @type {[Side, number][]} */
+      const distances = [
+        ["above", y],
+        ["below", 1 - y],
+        ["left", x],
+        ["right", 1 - x],
+      ];
+      side = distances.reduce((a, b) => (b[1] < a[1] ? b : a))[0];
+    }
+    drop = { target, side };
+    indicator.hidden = false;
+    indicator.className = side;
+    Object.assign(indicator.style, {
+      left: `${box.left}px`,
+      top: `${box.top}px`,
+      width: `${box.width}px`,
+      height: `${box.height}px`,
+    });
+  };
+  const end = (/** @type {Event} */ e) => {
+    e.stopPropagation();
+    window.removeEventListener("pointerover", quiet, true);
+    window.removeEventListener("pointerout", quiet, true);
+    window.removeEventListener("pointermove", move, true);
+    window.removeEventListener("pointerup", end, true);
+    window.removeEventListener("pointercancel", end, true);
+    document.body.classList.remove("piece-dragging");
+    indicator.hidden = true;
+    if (drop && e.type === "pointerup") movePieceTo(piece, drop.target, drop.side);
+  };
+  // the board's hover highlight (switch access) watches these; it stays
+  // quiet while a piece is dragged
+  const quiet = (/** @type {Event} */ e) => e.stopPropagation();
+  // on the window, ahead of the board's own pointer handling
+  window.addEventListener("pointerover", quiet, true);
+  window.addEventListener("pointerout", quiet, true);
+  window.addEventListener("pointermove", move, true);
+  window.addEventListener("pointerup", end, true);
+  window.addEventListener("pointercancel", end, true);
+}
+
+document.addEventListener("rendercomplete", drawOverlay);
+window.addEventListener("resize", drawOverlay);
+document.addEventListener("scroll", drawOverlay, true);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && overlayMenu) {
+    overlayMenu = null;
+    drawOverlay();
+  }
+});
+
 /** @param {TreeBase} node @returns {boolean} */
 function hasWordGrid(node) {
   return (
@@ -19595,9 +20817,8 @@ function hasWordGrid(node) {
   );
 }
 
-/** How to put words and pictures into a word grid, shown prominently
- * @param {Hole} [extra] - shown at the end, e.g. the Find pictures button */
-function howToFill(extra = html``) {
+/** How to put words and pictures into a word grid, shown prominently */
+function howToFill() {
   return html`<div class="piece-howto" role="note">
     <strong>Fill the grid on the board:</strong>
     <div class="howto-row">
@@ -19605,11 +20826,14 @@ function howToFill(extra = html``) {
       <span>a square to type a word</span>
     </div>
     <div class="howto-row">
+      <span class="howto-gesture">Click a picture</span>
+      <span>to choose a better one</span>
+    </div>
+    <div class="howto-row">
       <span class="howto-gesture">Double-click</span>
-      <span>a square to add a picture</span>
+      <span>to use a picture from your computer</span>
     </div>
     <small>Enter moves on to the next square. Paste a list to fill many.</small>
-    ${extra}
   </div>`;
 }
 
@@ -22412,21 +23636,6 @@ const defaultMethods = {
   ],
 };
 
-/**
- * Conditionally show an indicator with a title
- *
- * @param {boolean} toggle
- * @param {string} title
- * @returns {Hole}
- */
-function toggleIndicator(toggle, title) {
-  if (toggle) {
-    return html`<span class="indicator" title=${title}>&#9679;</span>`;
-  } else {
-    return html`<!--empty-->`;
-  }
-}
-
 // allow tearing down handlers when changing configurations
 const stop$ = new Subject();
 
@@ -22884,870 +24093,6 @@ class HandlerResponse extends TreeBaseSwitchable {
   }
 }
 TreeBase.register(HandlerResponse, "HandlerResponse");
-
-const defaultPatterns = {
-  className: "PatternList",
-  props: {
-    direction: "",
-    background: "",
-    scale: 1,
-    name: "Patterns",
-    label: "",
-  },
-  children: [
-    {
-      className: "PatternManager",
-      props: {
-        Cycles: "2",
-        Cue: "DefaultCue",
-        Name: "None",
-        Key: "idl83jg7qtj9wmyggtxf",
-        Active: false,
-      },
-      children: [],
-    },
-    {
-      className: "PatternManager",
-      props: {
-        Cycles: "2",
-        Cue: "DefaultCue",
-        Name: "Row Column",
-        Key: "idl83jjo4z0ibii6748fx",
-        Active: true,
-      },
-      children: [
-        {
-          className: "PatternSelector",
-          props: {},
-          children: [
-            {
-              className: "GroupBy",
-              props: {
-                GroupBy: "#row",
-                Name: "Row #row",
-                Cue: "DefaultCue",
-                Cycles: "2",
-              },
-              children: [],
-            },
-          ],
-        },
-      ],
-    },
-    {
-      className: "PatternManager",
-      props: {
-        Cycles: 2,
-        Cue: "DefaultCue",
-        Name: "Column Row",
-        Key: "idlh6dwljzc1nwvfrrp9v",
-        Active: false,
-      },
-      children: [
-        {
-          className: "PatternSelector",
-          props: {},
-          children: [
-            {
-              className: "GroupBy",
-              props: {
-                GroupBy: "#column",
-                Name: "Column #column",
-                Cue: "DefaultCue",
-                Cycles: 2,
-              },
-              children: [],
-            },
-          ],
-        },
-      ],
-    },
-    {
-      className: "PatternManager",
-      props: {
-        Cycles: "2",
-        Cue: "DefaultCue",
-        Name: "Controls and Rows",
-        Key: "idl83jjo4z0ibii6748fx",
-        Active: false,
-      },
-      children: [
-        {
-          className: "PatternGroup",
-          props: { Name: "Controls", Cycles: "2", Cue: "DefaultCue" },
-          children: [
-            {
-              className: "PatternSelector",
-              props: {},
-              children: [
-                {
-                  className: "Filter",
-                  props: { Filter: "#controls" },
-                  children: [],
-                },
-                {
-                  className: "OrderBy",
-                  props: { OrderBy: "#controls" },
-                  children: [],
-                },
-              ],
-            },
-          ],
-        },
-        {
-          className: "PatternSelector",
-          props: {},
-          children: [
-            {
-              className: "Filter",
-              props: { Filter: "! #controls" },
-              children: [],
-            },
-            {
-              className: "GroupBy",
-              props: {
-                GroupBy: "#ComponentName",
-                Name: " Component",
-                Cue: "DefaultCue",
-                Cycles: "2",
-              },
-              children: [],
-            },
-            {
-              className: "GroupBy",
-              props: {
-                GroupBy: "#row",
-                Name: "Row #row",
-                Cue: "DefaultCue",
-                Cycles: "2",
-              },
-              children: [],
-            },
-          ],
-        },
-      ],
-    },
-  ],
-};
-
-// only run one animation at a time
-let animationNonce = 0;
-
-/** @param {Target} target
- * @param {string} defaultValue
- * @param {boolean} isGroup
- * */
-function cueTarget(target, defaultValue, isGroup = false) {
-  let fields = {};
-  if (target instanceof HTMLButtonElement) {
-    target.setAttribute("cue", defaultValue);
-    const video = target.querySelector("video");
-    if (!isGroup && video && !video.hasAttribute("autoplay")) {
-      if (video.hasAttribute("muted")) video.muted = true;
-      const promise = video.play();
-      if (promise !== undefined) {
-        promise
-          .then(() => {})
-          .catch(() => {});
-      }
-    }
-    fields = target.dataset;
-  } else if (target instanceof Group) {
-    target.cue(defaultValue);
-    fields = target.access;
-  }
-  const cue = Globals.cues.keyToCue(defaultValue);
-  if (!isGroup && cue) {
-    if (cue.SpeechField.value) {
-      const message = fields[cue.SpeechField.value.slice(1)];
-      speak(
-        message,
-        cue.voiceURI.value,
-        cue.pitch.value,
-        cue.rate.value,
-        cue.volume.value,
-      );
-    }
-    if (cue.AudioField.value) {
-      const file = fields[cue.AudioField.value.slice(1)] || "";
-      playAudio(file);
-    }
-  }
-}
-
-function clearCues() {
-  for (const element of document.querySelectorAll("#UI [cue]")) {
-    element.removeAttribute("cue");
-    const video = element.querySelector("video");
-    if (video && !video.hasAttribute("autoplay")) {
-      video.pause();
-      video.currentTime = 0;
-    }
-  }
-}
-
-/**
- * Group is a collection of Buttons or Groups and associated properties such as
- * the label and cue.
- */
-class Group {
-  /**
-   * @param {Target[]} members
-   * @param {Object} props
-   */
-  constructor(members, props) {
-    /** @type {Target[]} */
-    this.members = members;
-    this.access = { GroupName: props.Name, ...props };
-  }
-
-  get length() {
-    return this.members.length * +this.access.Cycles;
-  }
-
-  /** @param {Number} index */
-  member(index) {
-    if (index < 0 || index >= this.length) {
-      return undefined;
-    } else {
-      return this.members[index % this.members.length];
-    }
-  }
-
-  /** @param {string} value */
-  cue(value = "", top = true) {
-    if (!value) {
-      value = this.access.Cue;
-    }
-    for (const member of this.members) {
-      if (member instanceof HTMLButtonElement)
-        cueTarget(member, value, !top || this.members.length > 1);
-      else if (member instanceof Group) {
-        member.cue(value, false);
-      }
-    }
-  }
-
-  /** Test if this group contains a button return the top-level index if so, -1 if not
-   * @param {HTMLButtonElement} button
-   * @returns {number}
-   */
-  contains(button) {
-    for (let i = 0; i < this.members.length; i++) {
-      const member = this.members[i];
-      if (
-        member === button ||
-        (member instanceof Group && member.contains(button) >= 0)
-      )
-        return i;
-    }
-    return -1;
-  }
-}
-
-class PatternBase extends TreeBase {
-  /** @type {PatternBase[]} */
-  children = [];
-
-  /**
-   * @param {Target[]} input
-   * @returns {Target[]}
-   */
-  apply(input) {
-    return input;
-  }
-}
-
-class PatternList extends DesignerPanel {
-  name = new String$1("Patterns");
-  allowDelete = false;
-
-  allowedChildren = ["PatternManager"];
-  /** @type {PatternManager[]} */
-  children = [];
-
-  static tableName = "pattern";
-  static defaultValue = defaultPatterns;
-
-  settings() {
-    return html`<div class=${this.CSSClasses("PatternList")} id=${this.id}>
-      <details class="panel-help">
-        <summary>About the Patterns tab</summary>
-        <div class="panel-help-body">
-          <p>Patterns define how buttons on the board are grouped and sequenced for switch scanning. Each <strong>Pattern Manager</strong> describes one complete scan sequence.</p>
-          <ul>
-            <li><strong>Default</strong> — mark one pattern as the default; it is used by Methods that don't specify a pattern.</li>
-            <li><strong>Pattern Group</strong> — clusters buttons together (e.g. all buttons in a row) so two-switch row-column scanning works. Set <em>Cycles</em> to control how many times the group repeats before auto-advancing.</li>
-            <li><strong>Pattern Selector</strong> — picks which buttons to include, with optional <em>Filter</em>, <em>Order By</em>, and <em>Group By</em> operators.</li>
-            <li>Press <strong>Animate</strong> on a Pattern Manager to preview the scan sequence in the canvas.</li>
-            <li>Leave a Pattern Manager with no children to scan every visible button in document order.</li>
-          </ul>
-        </div>
-      </details>
-      ${this.unorderedChildren()}
-    </div>`;
-  }
-
-  /**
-   * @returns {PatternManager}
-   */
-  get activePattern() {
-    return (
-      this.children.find((child) => child.Active.value) || this.children[0]
-    );
-  }
-
-  get patternMap() {
-    /** @type {[string,string][]} */
-    const entries = this.children.map((child) => [
-      child.Key.value,
-      child.Name.value,
-    ]);
-    entries.unshift(["DefaultPattern", "Default Pattern"]);
-    entries.unshift(["NullPattern", "No Pattern"]);
-    return new Map(entries);
-  }
-
-  /**
-   * return the pattern given its key
-   * @param {string} key
-   */
-  patternFromKey(key) {
-    let result;
-    if (key === "NullPattern") {
-      return nullPatternManager;
-    }
-    result = this.children.find((pattern) => pattern.Key.value == key);
-    if (!result) {
-      result = this.activePattern;
-    }
-    return result;
-  }
-
-  /**
-   * Merge an object into the panel contents
-   * @param {ExternalRep} obj
-   * @returns {Promise<void>}
-   */
-  async merge(obj) {
-    console.assert(obj.className == "PatternList", obj);
-    const toMerge = obj.children;
-    for (let newChild of toMerge) {
-      TreeBase.fromObject(newChild, this);
-    }
-    this.onUpdate();
-  }
-}
-TreeBase.register(PatternList, "PatternList");
-
-class PatternManager extends PatternBase {
-  allowedChildren = ["PatternSelector", "PatternGroup"];
-
-  /** @type {Group} */
-  targets = new Group([], {});
-  /**
-   * Stack keeps track of the nesting as we walk the tree
-   *
-   * @type {{ group: Group; cue: string, index: number }[]}
-   */
-  stack = [];
-
-  /**
-   * @type {Boolean} - cue is active when true
-   */
-  cued = false;
-
-  // props
-  Cue = new Cue$1({ defaultValue: "DefaultCue" });
-  Name = new String$1("a pattern");
-  Key = new UID();
-  Active = new OneOfGroup(false, {
-    group: "pattern-active",
-    label: "Default",
-  });
-  StartVisible = new Boolean$1(false);
-
-  settingsSummary() {
-    const { Name, Active } = this;
-    return html`<h3>
-      ${Name.value} ${toggleIndicator(Active.value, "Active")}
-    </h3>`;
-  }
-
-  settingsDetails() {
-    const { Cue, Name, Active, StartVisible } = this;
-    return [
-      html`
-        <div>
-          ${Name.input()} ${Active.input()} ${Cue.input()}
-          ${StartVisible.input()}
-          <button
-            @click=${() => {
-              this.animate();
-            }}
-          >
-            Animate
-          </button>
-          ${this.orderedChildren()}
-        </div>
-      `,
-    ];
-  }
-
-  settingsChildren() {
-    return html`<div />`;
-  }
-
-  /**
-   * @param {Target[]} input
-   * @returns {Target[]}
-   */
-  apply(input) {
-    let members = [];
-    for (const child of this.children) {
-      const r = child.apply(input);
-      if (r.length > 0) {
-        if (r instanceof Group) {
-          members.push(r);
-        } else {
-          members = members.concat(r);
-        }
-      }
-    }
-    if (members.length > 0) return [new Group(members, this.propsAsObject)];
-    else return [];
-  }
-
-  /** Collect the nodes from the DOM and process them into targets */
-  refresh() {
-    // gather the buttons from the UI
-    const buttons = [];
-    for (const node of /** @type {NodeListOf<HTMLButtonElement>} */ (
-      document.querySelectorAll("#UI button:not(:disabled)")
-    )) {
-      buttons.push(node);
-    }
-
-    let members = [];
-    if (this.children.length) {
-      for (const child of this.children) {
-        const r = child.apply(buttons);
-        if (r.length > 0) {
-          if (r instanceof Group) {
-            members.push(r);
-          } else {
-            members = members.concat(r);
-          }
-        }
-      }
-    } else {
-      members = buttons;
-    }
-    this.targets = new Group(members, { ...this.propsAsObject, Cycles: 1 });
-    this.stack = [
-      {
-        group: this.targets,
-        cue: this.Cue.value,
-        index: this.StartVisible.value ? 0 : -1,
-      },
-    ];
-    this.cue();
-
-    // stop any running animations
-    animationNonce += 1;
-  }
-
-  /**
-   * Current keeps track of the currently active node or group
-   *
-   * @type {Target | undefined}
-   */
-  get current() {
-    const { group, index } = this.stack[0];
-    return group.member(index);
-  }
-
-  next() {
-    const top = this.stack[0];
-    if (top.index < top.group.length - 1) {
-      top.index++;
-    } else if (this.stack.length > 1) {
-      this.stack.shift();
-    } else if (this.stack.length == 1) {
-      top.index = 0;
-    } else ;
-    this.cue();
-  }
-
-  /** @param {EventLike} event */
-  activate(event) {
-    const target = event.target;
-    if (target) {
-      // adjust the stack to accomodate the target
-      for (;;) {
-        const top = this.stack[0];
-        const newIndex = top.group.members.indexOf(target);
-        if (newIndex >= 0) {
-          top.index = newIndex;
-          break;
-        }
-        if (this.stack.length == 1) {
-          top.index = 0;
-          break;
-        } else {
-          this.stack.shift();
-        }
-      }
-    }
-    let current = this.current;
-    if (!current) return;
-    while (current instanceof Group && current.members.length == 1) {
-      // manage currentCue while we walk through singleton groups
-      current = current.members[0];
-    }
-    if (current instanceof Group) {
-      // I need to work out the index here. Should be the group under the pointer
-      this.stack.unshift({
-        group: current,
-        cue: current.access.Cue,
-        index: event?.groupIndex || 0,
-      });
-    } else if (current instanceof HTMLButtonElement) {
-      // In the designer a click selects a piece (layout.js) or edits a
-      // grid word (grid.js) instead of pressing it; Preview is where the
-      // board gets tried out. Tabs still switch, so each can be edited.
-      if (Globals.state.get("editing") && !current.hasAttribute("click")) {
-        this.cue();
-        return;
-      }
-      if (current.hasAttribute("click")) {
-        current.dispatchEvent(new Event("Activate"));
-      } else {
-        const name = current.dataset.ComponentName;
-        Globals.actions.applyRules(name || "", "press", { ...current.dataset });
-      }
-    }
-    this.cue();
-  }
-
-  clearCue() {
-    this.cued = false;
-    clearCues();
-  }
-
-  cue() {
-    this.clearCue();
-    const current = this.current;
-    if (!current) return;
-    this.cued = true;
-    cueTarget(current, this.stack[0].cue);
-  }
-
-  /** Return the access info for current
-   */
-  getCurrentAccess() {
-    const current = this.current;
-    if (!current) return {};
-    if (current instanceof HTMLButtonElement) {
-      return current.dataset;
-    } else if (current instanceof Group) {
-      return { ...current.access };
-    }
-    return {};
-  }
-
-  /** Map the event target to a group
-   * @param {EventLike} event
-   * @returns {EventLike}
-   */
-  remapEventTarget(event) {
-    event = {
-      type: event.type,
-      target: event.target,
-      timeStamp: event.timeStamp,
-    };
-    if (event.target instanceof HTMLButtonElement) {
-      event.access = event.target.dataset;
-    }
-    if (!event.target) return event;
-    event.originalTarget = event.target;
-    for (let level = 0; level < this.stack.length; level++) {
-      const group = this.stack[level].group;
-      const members = group.members;
-      // first scan to see if the element is top level in this group
-      let index = members.indexOf(event.target);
-      if (index >= 0) {
-        if (level === 0) {
-          return event;
-        } else {
-          return {
-            ...event,
-            target: group,
-            groupIndex: index,
-            access: { ...event.access, ...group.access },
-          };
-        }
-      } else if (event.target instanceof HTMLButtonElement) {
-        // otherwise check to see if any group members contain it
-        for (index = 0; index < members.length; index++) {
-          const member = members[index];
-          if (member instanceof Group) {
-            let i = member.contains(event.target);
-            if (i >= 0) {
-              return {
-                ...event,
-                target: member,
-                groupIndex: i,
-                access: { ...event.access, ...member.access },
-              };
-            }
-          }
-        }
-      }
-    }
-    return event;
-  }
-
-  async animate() {
-    /** @param {Group} group
-     * @param {string} cue
-     */
-    function* animateGroup(group, cue) {
-      const cycles = +group.access.Cycles;
-      const groupTime = 500;
-      const buttonTime = Math.max(
-        100,
-        Math.min(500, 600 / group.members.length),
-      );
-      for (let cycle = 0; cycle < cycles; cycle++) {
-        for (const member of group.members) {
-          cueTarget(member, cue);
-          yield new Promise((resolve) =>
-            setTimeout(
-              resolve,
-              member instanceof Group ? groupTime : buttonTime,
-            ),
-          );
-          clearCues();
-          if (member instanceof Group) {
-            yield* animateGroup(member, cue);
-          }
-        }
-      }
-    }
-    this.clearCue();
-    this.refresh();
-
-    // kill any running animations and save the new value
-    let nonce = ++animationNonce;
-
-    for (const promise of animateGroup(this.targets, this.Cue.value)) {
-      await promise;
-      // quit if the animationNonce changes
-      if (nonce !== animationNonce) return;
-    }
-  }
-}
-PatternBase.register(PatternManager, "PatternManager");
-
-const nullPatternManager = TreeBase.create(PatternManager);
-
-class PatternGroup extends PatternBase {
-  // props
-  Name = new String$1("");
-  Cycles = new Integer(2, { min: 1 });
-  Cue = new Cue$1({ defaultValue: "DefaultCue" });
-
-  allowedChildren = ["PatternGroup", "PatternSelector"];
-
-  settings() {
-    const { Name, Cycles, Cue } = this;
-    return html`<fieldset class=${this.className} tabindex="0" id=${this.id}>
-      <legend>Group: ${Name.value}</legend>
-      ${Name.input()} ${Cycles.input()} ${Cue.input()} ${this.orderedChildren()}
-    </fieldset>`;
-  }
-
-  /**
-   * Build a group from the output of the selectors applied to the input
-   *
-   * @param {Target[]} input
-   */
-  apply(input) {
-    let members = [];
-    for (const child of this.children) {
-      const r = child.apply(input);
-      if (r.length > 0) {
-        if (r instanceof Group) {
-          members.push(r);
-        } else {
-          members = members.concat(r);
-        }
-      }
-    }
-    if (members.length > 0) return [new Group(members, this.propsAsObject)];
-    else return [];
-  }
-}
-PatternBase.register(PatternGroup, "PatternGroup");
-
-class PatternSelector extends PatternBase {
-  allowedChildren = ["Filter", "GroupBy", "OrderBy"];
-  settings() {
-    return html`<fieldset class=${this.className} tabindex="0" id=${this.id}>
-      <legend>Selector</legend>
-      ${this.unorderedChildren()}
-    </fieldset>`;
-  }
-
-  /**
-   * Select buttons from the input
-   *
-   * @param {Target[]} input
-   * @returns {Target[]}
-   */
-  apply(input) {
-    return this.children.reduce(
-      (previous, operator) => operator.apply(previous),
-      input,
-    );
-  }
-}
-PatternBase.register(PatternSelector, "PatternSelector");
-
-class Filter extends PatternBase {
-  Filter = new Expression();
-  settings() {
-    const { Filter } = this;
-    return html`<div class=${this.className} tabindex="0" id=${this.id}>
-      ${Filter.input()}
-    </div>`;
-  }
-  /**
-   * Select buttons from the input
-   *
-   * @param {Target[]} input
-   * @returns {Target[]}
-   */
-  apply(input) {
-    if (input[0] instanceof Group) {
-      return input
-        .map(
-          (/** @type {Group} */ group) =>
-            new Group(this.apply(group.members), group.access),
-        )
-        .filter((target) => target.length > 0);
-    } else {
-      return input.filter((/** @type {HTMLButtonElement} */ button) =>
-        this.Filter.valueInContext({ data: button.dataset }),
-      );
-    }
-  }
-}
-PatternBase.register(Filter, "Filter");
-
-// allow the sort to handle numbers reasonably
-const comparator = new Intl.Collator(undefined, {
-  numeric: true,
-});
-
-class OrderBy extends PatternBase {
-  OrderBy = new Field();
-  settings() {
-    const { OrderBy } = this;
-    return html`<div class=${this.className} tabindex="0" id=${this.id}>
-      ${OrderBy.input()}
-    </div>`;
-  }
-  /**
-   * Select buttons from the input
-   *
-   * @param {Target[]} input
-   * @returns {Target[]}
-   */
-  apply(input) {
-    if (input[0] instanceof Group) {
-      return input
-        .map(
-          (/** @type {Group} */ group) =>
-            new Group(this.apply(group.members), group.access),
-        )
-        .filter((target) => target.length > 0);
-    } else {
-      const key = this.OrderBy.value.slice(1);
-      return [.../** @type {HTMLButtonElement[]} */ (input)].sort((a, b) =>
-        comparator.compare(a.dataset[key] || "", b.dataset[key] || ""),
-      );
-    }
-  }
-}
-PatternBase.register(OrderBy, "OrderBy");
-
-class GroupBy extends PatternBase {
-  GroupBy = new Field();
-  Name = new String$1("");
-  Cue = new Cue$1({ defaultValue: "DefaultCue" });
-  Cycles = new Integer(2);
-  settings() {
-    const { GroupBy, Name, Cue, Cycles } = this;
-    const fields = toMap([
-      ...new Set([
-        ...Globals.data.allFields,
-        "#ComponentName",
-        "#row",
-        "#column",
-      ]),
-    ]);
-    return html`<div class=${this.className} tabindex="0" id=${this.id}>
-      ${GroupBy.input(fields)} ${Name.input()} ${Cue.input()} ${Cycles.input()}
-    </div>`;
-  }
-  /**
-   * Select buttons from the input
-   *
-   * @param {Target[]} input
-   * @returns {Target[]}
-   */
-  apply(input) {
-    if (input[0] instanceof Group) {
-      return input
-        .map(
-          (/** @type {Group} */ group) =>
-            new Group(this.apply(group.members), group.access),
-        )
-        .filter((target) => target.length > 0);
-    } else {
-      const { GroupBy, Name, ...props } = this.propsAsObject;
-      const key = GroupBy.slice(1);
-      const result = [];
-      const groupMap = new Map();
-      for (const button of /** @type {HTMLButtonElement[]} */ (input)) {
-        let k = button.dataset[key] || "";
-        // if (!k) continue;
-        k = k.toString();
-        // we got a key, check to see if we have a group
-        let group = groupMap.get(k);
-        if (!group) {
-          // no group, create one and add it to the map and the result
-          group = new Group([button], {
-            GroupName: Name.replace(GroupBy, k),
-            [key]: k,
-            ...props,
-          });
-          groupMap.set(k, group);
-          result.push(group);
-        } else {
-          group.members.push(button);
-        }
-      }
-      if (result.length === 1) {
-        return result[0].members;
-      }
-      return result;
-    }
-  }
-}
-PatternBase.register(GroupBy, "GroupBy");
 
 class ResponderNext extends HandlerResponse {
   respond() {
@@ -27352,9 +27697,9 @@ const steps = [
     title: "Layout: the pieces of your board",
     body:
       "Add pieces here — a message bar, word grids, buttons, tabs. Click " +
-      "a piece on the board to change it or add another next to it, and " +
-      "drag the bar between two pieces to resize them. The full component " +
-      "tree is under “All components (advanced)”.",
+      "a piece on the board to change it; the + buttons around it add a " +
+      "piece next to it, ⠿ Move drags it, and the grey bars between pieces " +
+      "resize them. The full component tree is under Advanced → Components.",
   },
   {
     tab: "Content",
@@ -27427,7 +27772,7 @@ const steps = [
   {
     title: "That’s the tour!",
     body:
-      "Start with Generate with AI or add a Word grid in Layout, type in " +
+      "Start with Generate with AI or a Talking board in Layout, type in " +
       "some words, and press Preview. You can run this tour again any time " +
       "from Help → Tutorial.",
   },
@@ -29746,6 +30091,10 @@ async function start() {
         layout,
         Globals.actions,
         Globals.content,
+        TreeBase.create(ComponentsPanel, null, {
+          name: "Components",
+          label: "Components",
+        }),
         Globals.cues,
         Globals.patterns,
         Globals.methods,
