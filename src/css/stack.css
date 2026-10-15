@@ -177,3 +177,10 @@ body.designing .column > div {
   background: var(--brand);
   opacity: 1;
 }
+
+/* a piece with no room takes none, even with the designer's minimum
+   sizes (stack.js) */
+.row > div.no-room,
+.column > div.no-room {
+  display: none;
+}

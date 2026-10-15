@@ -54,9 +54,9 @@ const steps = [
     title: "Layout: the pieces of your board",
     body:
       "Add pieces here — a message bar, word grids, buttons, tabs. Click " +
-      "a piece on the board to change it or add another next to it, and " +
-      "drag the bar between two pieces to resize them. The full component " +
-      "tree is under “All components (advanced)”.",
+      "a piece on the board to change it; the + buttons around it add a " +
+      "piece next to it, ⠿ Move drags it, and the grey bars between pieces " +
+      "resize them. The full component tree is under Advanced → Components.",
   },
   {
     tab: "Content",
@@ -129,7 +129,7 @@ const steps = [
   {
     title: "That’s the tour!",
     body:
-      "Start with Generate with AI or add a Word grid in Layout, type in " +
+      "Start with Generate with AI or a Talking board in Layout, type in " +
       "some words, and press Preview. You can run this tour again any time " +
       "from Help → Tutorial.",
   },

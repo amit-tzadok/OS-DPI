@@ -7,7 +7,7 @@ import { formatSlottedString } from "./slots";
 import Globals from "app/globals";
 import db from "app/db";
 import { fileOpen } from "browser-fs-access";
-import { findPictogram, isPictogram } from "./pictograms";
+import { findPictogram, isPictogram, pictureChoices } from "./pictograms";
 import "css/grid.css";
 
 /**
@@ -45,6 +45,23 @@ export function imageOrVideo(src, title, onload = null) {
   }
 }
 
+/** The grid whose picture choices are showing, so a click elsewhere can
+ * close them
+ * @type {Grid | null} */
+let openPicker = null;
+
+document.addEventListener("pointerdown", (event) => {
+  if (!openPicker?._picturePick) return;
+  const target = /** @type {Element} */ (event.target);
+  // clicks inside the choices, or on a picture (which reopens them), stay
+  if (target.closest?.(".picture-popover, .grid button")) return;
+  openPicker.closePictures();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") openPicker?.closePictures();
+});
+
 class Grid extends TreeBase {
   fillItems = new Props.Boolean(true, {
     title: "When on, buttons fill left-to-right in order. Turn off to set each button's exact row/column position.",
@@ -76,6 +93,7 @@ class Grid extends TreeBase {
    */
   startEditing(row, column, absIdx, text) {
     if (!Globals.state?.get("editing")) return;
+    this._picturePick = null;
     const opened = performance.now();
     this._editCell = { key: `${row},${column}`, absIdx, row, column, text, opened };
     Globals.state.update();
@@ -92,6 +110,7 @@ class Grid extends TreeBase {
    */
   async pickPicture(absIdx, row, column) {
     this._editCell = null;
+    this._picturePick = null;
     let file;
     try {
       file = await fileOpen({ description: "Pictures", mimeTypes: ["image/*"] });
@@ -212,6 +231,14 @@ class Grid extends TreeBase {
     data.setContent(rows);
     await db.write("content", rows);
 
+    if (this.fillItems.value) {
+      await this.growFor(data.getMatchingRows(this.children, false).length);
+      // the next empty square after the words, once it is drawn
+      this._typeNext = keepTyping;
+      Globals.state.update();
+      this.addPictures(added);
+      return;
+    }
     const next = empties[start + labels.length];
     if (keepTyping && next) {
       this._editCell = {
@@ -225,6 +252,132 @@ class Grid extends TreeBase {
     }
     Globals.state.update();
     this.addPictures(added);
+  }
+
+  /** Open the text box on the first empty square at the next drawing */
+  _typeNext = false;
+
+  /**
+   * Grow the grid so all its words fit with one empty square to spare
+   * (widening first, as boards are wider than tall), up to 8 × 8; beyond
+   * that it gets pages.
+   * @param {number} count
+   */
+  async growFor(count) {
+    let rows = this.rows.value;
+    let columns = this.columns.value;
+    while (rows * columns < count + 1) {
+      if (columns <= rows + 1 && columns < 8) columns++;
+      else if (rows < 8) rows++;
+      else break;
+    }
+    if (rows === this.rows.value && columns === this.columns.value) return;
+    this.rows.set(rows);
+    this.columns.set(columns);
+    // save without moving focus off the square being typed in
+    await Globals.layout.doUpdate(true);
+  }
+
+  /** The picture choices showing for a word on the board (designer)
+   * @type {{absIdx: number, row: number, column: number, label: string, choices: string[] | null} | null} */
+  _picturePick = null;
+
+  /** Show picture choices for a word, next to it on the board
+   * @param {number} absIdx
+   * @param {number} row
+   * @param {number} column
+   * @param {string} label
+   */
+  async openPictures(absIdx, row, column, label) {
+    this._editCell = null;
+    const pick = { absIdx, row, column, label, choices: /** @type {string[] | null} */ (null) };
+    this._picturePick = pick;
+    openPicker = this;
+    Globals.state.update();
+    const { choices } = await pictureChoices([label]);
+    if (this._picturePick !== pick) return;
+    pick.choices = choices.get(label) ?? [];
+    Globals.state.update();
+  }
+
+  closePictures() {
+    if (!this._picturePick) return;
+    this._picturePick = null;
+    Globals.state.update();
+  }
+
+  /** Use a picture (or none) for a word
+   * @param {number} absIdx
+   * @param {string} symbol */
+  async setPicture(absIdx, symbol) {
+    this._picturePick = null;
+    const { data } = Globals;
+    const target = data.getMatchingRows(this.children, false)[absIdx];
+    const rows = [...data.contentRows];
+    const index = rows.indexOf(target);
+    if (index >= 0) {
+      const { symbol: _old, ...rest } = target;
+      rows[index] = symbol ? { ...rest, symbol } : rest;
+      data.setContent(rows);
+      await db.write("content", rows);
+    }
+    Globals.state.update();
+  }
+
+  /** The picture choices, floating by the word's square */
+  picturePopover() {
+    const pick = /** @type {NonNullable<Grid["_picturePick"]>} */ (this._picturePick);
+    const { rows, columns } = this._shape;
+    const current = String(
+      Globals.data.getMatchingRows(this.children, false)[pick.absIdx]?.symbol ?? "",
+    );
+    // below the square in the top half, above it in the bottom half, and
+    // kept inside the grid sideways
+    /** @type {Partial<CSSStyleDeclaration>} */
+    const style = {};
+    if (pick.row <= rows / 2) style.top = `${(100 * pick.row) / rows}%`;
+    else style.bottom = `${(100 * (rows - pick.row + 1)) / rows}%`;
+    if (pick.column <= columns / 2) style.left = `${(100 * (pick.column - 1)) / columns}%`;
+    else style.right = `${(100 * (columns - pick.column)) / columns}%`;
+
+    return html`<div
+      class="picture-popover"
+      style=${styleString(style)}
+      role="dialog"
+      aria-label=${`Picture for ${pick.label}`}
+    >
+      <div class="picture-popover-title">
+        <strong>Picture for “${pick.label}”</strong>
+        <button aria-label="Close" @click=${() => this.closePictures()}>✕</button>
+      </div>
+      <div class="picture-popover-choices">
+        ${pick.choices === null
+          ? [html`<span class="picture-popover-note">Finding pictures…</span>`]
+          : pick.choices.length
+            ? pick.choices.map(
+                (url) => html`<button
+                  class=${url === current ? "chosen" : ""}
+                  aria-pressed=${url === current}
+                  @click=${() => this.setPicture(pick.absIdx, url)}
+                >
+                  <img src=${url} alt="" />
+                </button>`,
+              )
+            : [html`<span class="picture-popover-note">No match found</span>`]}
+      </div>
+      <div class="picture-popover-actions">
+        <button
+          @click=${() => this.pickPicture(pick.absIdx, pick.row, pick.column)}
+        >
+          From my computer…
+        </button>
+        ${current
+          ? html`<button @click=${() => this.setPicture(pick.absIdx, "")}>
+              No picture
+            </button>`
+          : html``}
+      </div>
+    </div>`;
   }
 
   /** Give buttons a matching picture, without holding up typing; a
@@ -452,6 +605,12 @@ class Grid extends TreeBase {
     } else {
       content = msg;
     }
+    if (!item.symbol && absIdx >= 0 && Globals.state?.get("editing")) {
+      content = [
+        ...(Array.isArray(content) ? content : [content]),
+        html`<span class="picture-add" title="Add a picture">🖼</span>`,
+      ];
+    }
 
     // Use data-drag-idx attribute so handlers can read the index at event time
     // rather than relying on closures that may be stale after re-renders.
@@ -466,12 +625,26 @@ class Grid extends TreeBase {
       }}
       ?disabled=${!item.label && !item.symbol}
       title=${Globals.state?.get("editing") && absIdx >= 0
-        ? "Click to change the word (clear it to remove the button); double-click to choose a picture"
+        ? "Click the word to change it, or its picture to choose another; double-click for a picture from your computer"
         : null}
       @click=${(/** @type {MouseEvent} */ e) => {
         if (absIdx < 0 || !Globals.state?.get("editing")) return;
+        // pictures don't take clicks themselves (grid.css), so check where
+        // the click landed
+        const button = /** @type {HTMLElement} */ (e.currentTarget);
+        const onPicture = [...button.querySelectorAll("img, video, .picture-add")].some(
+          (element) => {
+            const box = element.getBoundingClientRect();
+            return (
+              e.clientX >= box.left && e.clientX <= box.right &&
+              e.clientY >= box.top && e.clientY <= box.bottom
+            );
+          },
+        );
         if (e.detail >= 2) self.pickPicture(absIdx, item.row, item.column);
-        else self.startEditing(item.row, item.column, absIdx, String(item.label ?? ""));
+        else if (onPicture) {
+          self.openPictures(absIdx, item.row, item.column, String(item.label ?? ""));
+        } else self.startEditing(item.row, item.column, absIdx, String(item.label ?? ""));
       }}
       @dragstart=${function (/** @type {DragEvent} */ e) {
         if (!Globals.state?.get("editing")) {
@@ -544,6 +717,11 @@ class Grid extends TreeBase {
   /** @param {number} row @param {number} column */
   emptyCell(row, column) {
     this._emptyCells.push([row, column]);
+    if (this._typeNext) {
+      this._typeNext = false;
+      const key = `${row},${column}`;
+      this._editCell = { key, absIdx: -1, row, column, text: "", opened: 0 };
+    }
     if (this._editCell?.key === `${row},${column}`) return this.cellEditor();
     const self = this;
     // clickable in the designer (to add a word); inert on the board
@@ -737,6 +915,10 @@ class Grid extends TreeBase {
     }
 
     this._shape = { rows, columns };
+    this._typeNext = false; // no empty square to go on to
+    if (this._picturePick && Globals.state?.get("editing")) {
+      result.push(this.picturePopover());
+    }
     style.gridTemplate = `repeat(${rows}, calc(100% / ${rows})) / repeat(${columns}, 1fr)`;
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;

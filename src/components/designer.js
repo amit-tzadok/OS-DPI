@@ -28,7 +28,13 @@ export class Designer extends TreeBase {
    * Tabs that typical users and speech pathologists rarely need.
    * They are collapsed behind an "Advanced" toggle in the tab strip.
    */
-  static ADVANCED_TABS = new Set(["Actions", "Cues", "Patterns", "Methods"]);
+  static ADVANCED_TABS = new Set([
+    "Components",
+    "Actions",
+    "Cues",
+    "Patterns",
+    "Methods",
+  ]);
 
   /** Whether the advanced tab group is expanded */
   showAdvanced = false;
@@ -203,8 +209,8 @@ export class Designer extends TreeBase {
       event.target.setAttribute("aria-selected", "true");
     }
 
-    if (this.currentPanel.name.value == "Layout") {
-      this.currentPanel.highlight();
+    if (["Layout", "Components"].includes(this.currentPanel.name.value)) {
+      Globals.layout.highlight();
     }
   };
 

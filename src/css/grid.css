@@ -305,3 +305,105 @@ body.designing .grid button.grid-empty:hover::after {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
 }
+
+/* ── Choosing a word's picture on the board (designer, grid.js) ── */
+.grid > div {
+  position: relative;
+}
+
+body.designing .grid button img,
+body.designing .grid button video {
+  cursor: pointer;
+}
+
+/* a word without a picture: a corner badge to add one, on hover */
+.grid button .picture-add {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-size: 0.75em;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+body.designing .grid button:hover .picture-add {
+  opacity: 0.85;
+}
+
+.grid .picture-popover {
+  position: absolute;
+  z-index: 20;
+  width: min(22em, 90%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.7em;
+  font-size: 0.6rem;
+  font-size: max(0.6rem, 13px);
+  background: var(--surface1);
+  color: var(--text1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md, 0 6px 24px rgb(0 0 0 / 0.18));
+}
+
+.picture-popover-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.grid .picture-popover button {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface1);
+  color: var(--text1);
+  cursor: pointer;
+  transform: none;
+}
+
+.picture-popover-title button {
+  width: 2em;
+  height: 2em;
+  padding: 0;
+}
+
+.picture-popover-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4em;
+}
+
+.grid .picture-popover-choices button {
+  aspect-ratio: 1;
+  padding: 0.3em;
+  background: white;
+}
+
+.picture-popover-choices img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.grid .picture-popover-choices button:hover,
+.grid .picture-popover-choices button.chosen {
+  border: 2px solid var(--brand);
+}
+
+.picture-popover-note {
+  grid-column: 1 / -1;
+  color: var(--text2);
+}
+
+.picture-popover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+}
+
+.grid .picture-popover-actions button {
+  padding: 0.4em 0.7em;
+}

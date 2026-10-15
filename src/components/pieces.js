@@ -180,8 +180,9 @@ function gridSpec() {
     className: "Grid",
     props: {
       name: uniqueName("grid"),
-      rows: "3",
-      columns: "4",
+      // small to start; it grows as words are typed (grid.js)
+      rows: "2",
+      columns: "3",
       fillItems: "true",
       background: "white",
       scale: String(defaultScale.grid),
@@ -281,11 +282,43 @@ function isFlexContainer(node) {
  * @returns {TreeBase} the component to select afterwards
  */
 export function addPiece(kind, anchor = null, side = "below") {
+  const created = TreeBase.fromObject(spec(kind), null);
+  place(created, anchor, side, kind === "clear");
+  if (kind === "tabs") {
+    for (const label of ["Tab 1", "Tab 2"]) {
+      TreeBase.fromObject(tabSpec(label), created);
+    }
+  }
+  setUp(allComponents(created));
+  Globals.layout.update();
+  // select the part a student would change next
+  return created.className === "Stack" ? created.children[0] : created;
+}
+
+/** A message bar and a word grid below it, ready to use: the quickest
+ * start on an empty board
+ * @returns {TreeBase} the grid, to type words into */
+export function addTalkingBoard() {
+  const display = addPiece("message");
+  return addPiece("grid", display, "below");
+}
+
+/**
+ * Put a component (not on the board) next to an anchor, or at the end of
+ * the page without one, wrapping the anchor in a new row or column when
+ * the side needs it.
+ * @param {TreeBase} node
+ * @param {TreeBase | null} anchor
+ * @param {"above" | "below" | "left" | "right" | "inside"} side
+ * @param {boolean} [intoMessageBar] - next to the display itself rather
+ *   than next to the whole message bar (for its Clear button)
+ */
+function place(node, anchor, side, intoMessageBar = false) {
   let container = page();
   let index = container.children.length;
 
   // next to a message bar means next to it and its Clear button together
-  if (anchor && kind !== "clear" && side !== "inside") {
+  if (anchor && !intoMessageBar && side !== "inside") {
     anchor = messageBar(anchor) ?? anchor;
   }
 
@@ -309,18 +342,38 @@ export function addPiece(kind, anchor = null, side = "below") {
       index = after;
     }
   }
+  container.children.splice(index, 0, node);
+  node.parent = container;
+}
 
-  const created = TreeBase.fromObject(spec(kind), container);
-  created.moveTo(index);
-  if (kind === "tabs") {
-    for (const label of ["Tab 1", "Tab 2"]) {
-      TreeBase.fromObject(tabSpec(label), created);
-    }
-  }
-  setUp(allComponents(created));
+/**
+ * Move a piece next to another one (dragging it on the board)
+ * @param {TreeBase} component
+ * @param {TreeBase} target
+ * @param {"above" | "below" | "left" | "right" | "inside"} side
+ */
+export function movePieceTo(component, target, side) {
+  const unit = messageBar(component) ?? component;
+  if (!canDropOn(component, target)) return;
+  const from = /** @type {TreeBase} */ (unit.parent);
+  from.children.splice(unit.index, 1);
+  unit.parent = undefined;
+  place(unit, target, side);
+  tidy(from);
   Globals.layout.update();
-  // select the part a student would change next
-  return created.className === "Stack" ? created.children[0] : created;
+}
+
+/** True when a piece can be dropped next to (or into) a target: not on
+ * itself, its own message bar, or anything inside it
+ * @param {TreeBase} component
+ * @param {TreeBase} target */
+export function canDropOn(component, target) {
+  const unit = messageBar(component) ?? component;
+  const anchor = messageBar(target) ?? target;
+  for (let node = /** @type {TreeBase | undefined} */ (anchor); node; node = node.parent) {
+    if (node === unit) return false;
+  }
+  return true;
 }
 
 /** Put a component in a new row (or column) that takes its place
@@ -444,6 +497,13 @@ export function removePiece(component) {
   target.remove();
   tidy(container);
   Globals.layout.update();
+}
+
+/** What moves and gets added next to as one: a message bar together
+ * with its Clear button, otherwise the component itself
+ * @param {TreeBase} component */
+export function pieceUnit(component) {
+  return messageBar(component) ?? component;
 }
 
 /** The row holding a message bar and its Clear button, if that is what

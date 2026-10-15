@@ -4,7 +4,8 @@ import { Messages } from "./components/errors";
 import { Data } from "./data";
 import { State } from "./state";
 import "./components";
-import { Layout } from "./components/layout";
+import { Layout, ComponentsPanel } from "./components/layout";
+import { TreeBase } from "./components/treebase";
 import { Monitor } from "./components/monitor";
 import { ToolBar } from "./components/toolbar";
 import db from "./db";
@@ -117,6 +118,10 @@ export async function start() {
         layout,
         Globals.actions,
         Globals.content,
+        TreeBase.create(ComponentsPanel, null, {
+          name: "Components",
+          label: "Components",
+        }),
         Globals.cues,
         Globals.patterns,
         Globals.methods,

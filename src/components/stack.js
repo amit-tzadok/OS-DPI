@@ -210,7 +210,10 @@ export class StackContainer extends TreeBase {
               ></div>`
             : html``;
 
+        // pieces with no room (Speech, a collapsed suggestions strip) take
+        // none in the designer either, where wrappers get a minimum size
         return html`<div
+          class=${size > 0 ? "" : "no-room"}
           style=${styleString({
             [dimension]: `${size}%`,
           })}
