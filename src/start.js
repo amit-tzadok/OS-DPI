@@ -6,6 +6,7 @@ import { State } from "./state";
 import "./components";
 import { Layout, ComponentsPanel } from "./components/layout";
 import { TreeBase } from "./components/treebase";
+import { removeUnsafePictures } from "./components/pictograms";
 import { Monitor } from "./components/monitor";
 import { ToolBar } from "./components/toolbar";
 import db from "./db";
@@ -71,6 +72,13 @@ export async function start() {
 
   Globals.data = new Data(dataArray);
   Globals.data.setNoteRows(noteArray);
+  // take any picture that fails the safety check off the board's words
+  removeUnsafePictures(dataArray).then(async (cleaned) => {
+    if (!cleaned || Globals.data.contentRows !== dataArray) return;
+    Globals.data.setContent(cleaned);
+    await db.write("content", cleaned);
+    Globals.state?.update();
+  });
   const layout = await Layout.load(Layout);
   Globals.layout = layout;
   Globals.state = new State(`UIState`);
