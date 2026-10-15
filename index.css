@@ -1270,6 +1270,41 @@ body.designing .grid button:hover .picture-add {
 .grid .picture-popover-actions button {
   padding: 0.4em 0.7em;
 }
+
+/* a square or button that opens another board (pieces.js) */
+.grid button .board-link-badge,
+button.button .board-link-badge {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  font-size: 0.8em;
+  font-weight: 700;
+  color: var(--brand);
+  pointer-events: none;
+  /* not stretched like a button's label (button.css) */
+  width: auto;
+  padding: 0;
+  display: block;
+}
+
+.grid button:has(.board-link-badge),
+button.button:has(.board-link-badge) {
+  position: relative;
+  border-bottom: 3px solid var(--brand);
+}
+
+.picture-popover-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding-top: 0.4em;
+  border-top: 1px solid var(--border-color);
+}
+
+.picture-popover-link select {
+  flex: 1;
+  min-width: 0;
+}
 /* ── Text display / utterance bar ── */
 .display {
   border: 1px solid var(--border-color);
@@ -3600,6 +3635,55 @@ body.piece-dragging #UI {
 body.designing #UI {
   padding: 10px;
   box-sizing: border-box;
+}
+
+/* ── Boards: which board opens which (layout.js) ── */
+.boards-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding-bottom: 0.75em;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.boards-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.boards-bar small {
+  color: var(--text2);
+}
+
+.board-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+
+.board-chip {
+  padding: 0.3em 0.75em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: var(--surface1);
+  color: var(--text1);
+  cursor: pointer;
+}
+
+.board-chip:hover {
+  border-color: var(--brand);
+}
+
+.board-chip.current {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: white;
+  font-weight: 600;
 }
 div.access-pattern {
   padding-left: 12px;
