@@ -12,6 +12,7 @@
  */
 import { TreeBase } from "./treebase";
 import Globals from "app/globals";
+import db from "app/db";
 
 /** A brand-new board: an empty page */
 export const blankLayout = {
@@ -43,7 +44,7 @@ export function rule(origin, condition, updates) {
   };
 }
 
-/** @typedef {"message" | "grid" | "button" | "tabs"} PieceKind */
+/** @typedef {"message" | "grid" | "button" | "tabs" | "board"} PieceKind */
 
 /** What the Add menu offers, in order
  * @type {{kind: PieceKind, label: string, icon: string, about: string}[]} */
@@ -71,6 +72,12 @@ export const pieceKinds = [
     label: "Tabs",
     icon: "🗂",
     about: "Pages of words to switch between, like Food and People.",
+  },
+  {
+    kind: "board",
+    label: "Board button",
+    icon: "📂",
+    about: "A button that opens a new board, like a folder. Boards can open more boards.",
   },
 ];
 
@@ -112,11 +119,15 @@ export function pieceLabel(component) {
     case "Display":
       return "Message bar";
     case "Button":
-      return isClearButton(component) ? "Clear button" : "Button";
+      if (isClearButton(component)) return "Clear button";
+      if (linkTarget(component)) {
+        return /^← /.test(String(component["label"].value)) ? "Back button" : "Board button";
+      }
+      return "Button";
     case "TabControl":
-      return "Tabs";
+      return component["name"].value === BOARDS ? "Boards" : "Tabs";
     case "TabPanel":
-      return "Tab";
+      return isBoard(component) ? "Board" : "Tab";
     case "VSD":
       return "Picture scene";
     case "Radio":
@@ -282,6 +293,7 @@ function isFlexContainer(node) {
  * @returns {TreeBase} the component to select afterwards
  */
 export function addPiece(kind, anchor = null, side = "below") {
+  if (kind === "board") return addBoardButton(anchor, side);
   const created = TreeBase.fromObject(spec(kind), null);
   place(created, anchor, side, kind === "clear");
   if (kind === "tabs") {
@@ -628,4 +640,363 @@ function separateGrids(newGrids) {
       : { field: "#grid", operator: "empty", value: "" };
     TreeBase.fromObject({ className: "GridFilter", props, children: [] }, grid);
   }
+}
+
+// ── Boards: pages of a board that buttons and word squares open ─────────
+//
+// The boards live in one TabControl named "boards" with its tabs hidden;
+// $board names the one showing. A message bar stays outside it, so the
+// sentence being built carries across boards. A button opens a board with
+// an Actions rule setting $board; a word square opens one with a "link"
+// field and its grid's "#link" rule.
+
+const BOARDS = "boards";
+export const HOME = "Home";
+
+/** The boards, once a board has more than one
+ * @returns {TreeBase | null} */
+export function boardsControl() {
+  return (
+    allComponents(Globals.layout).find(
+      (c) => c.className === "TabControl" && c["name"].value === BOARDS,
+    ) ?? null
+  );
+}
+
+/** @param {TreeBase | undefined | null} component */
+export function isBoard(component) {
+  return (
+    component?.className === "TabPanel" &&
+    component.parent?.className === "TabControl" &&
+    component.parent["name"].value === BOARDS
+  );
+}
+
+/** @returns {TreeBase[]} */
+export function boards() {
+  return boardsControl()?.children ?? [];
+}
+
+/** The board showing (null with only one board)
+ * @returns {TreeBase | null} */
+export function currentBoard() {
+  const all = boards();
+  const showing = Globals.state.get("$board");
+  return all.find((board) => board["name"].value === showing) ?? all[0] ?? null;
+}
+
+/** @param {string} name */
+export function showBoard(name) {
+  Globals.state.update({ $board: name });
+}
+
+/** The board a component is on (null with only one board)
+ * @param {TreeBase} component */
+export function boardOf(component) {
+  for (let node = /** @type {TreeBase | undefined} */ (component); node; node = node.parent) {
+    if (isBoard(node)) return node;
+  }
+  return null;
+}
+
+/** Names quote-free (they go into Actions expressions) and unique
+ * @param {string} name
+ * @param {TreeBase | null} [except] - the board being renamed */
+function boardName(name, except = null) {
+  const base = name.replace(/['"\\]/g, "").trim() || "Board";
+  const taken = new Set(
+    boards().filter((b) => b !== except).map((b) => String(b["name"].value)),
+  );
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) if (!taken.has(`${base} ${i}`)) return `${base} ${i}`;
+}
+
+/** Turn a single board into boards: what is there becomes Home, and a
+ * message bar stays above all of them
+ * @returns {TreeBase} the boards */
+function ensureBoards() {
+  const existing = boardsControl();
+  if (existing) return existing;
+  const board = page();
+  const shared = (/** @type {TreeBase} */ c) =>
+    c.className === "Display" ||
+    (c.className === "Stack" &&
+      c.children.some((child) => child.className === "Display") &&
+      c.children.every((child) => child.className === "Display" || isClearButton(child)));
+  const moving = board.children.filter(
+    (c) => visualClasses.has(c.className) && !shared(c),
+  );
+  const at = moving.length ? moving[0].index : board.children.length;
+  const room = moving.reduce((sum, c) => sum + (+c["scale"]?.value || 1), 0);
+  const control = TreeBase.fromObject(
+    {
+      className: "TabControl",
+      props: {
+        name: BOARDS,
+        stateName: "$board",
+        tabEdge: "none",
+        scale: String(room || defaultScale.grid),
+      },
+      children: [],
+    },
+    null,
+  );
+  const home = TreeBase.fromObject(
+    {
+      className: "TabPanel",
+      props: { name: HOME, label: HOME, direction: board["direction"].value },
+      children: [],
+    },
+    control,
+  );
+  for (const c of moving) {
+    board.children.splice(c.index, 1);
+    home.children.push(c);
+    c.parent = home;
+  }
+  board.children.splice(at, 0, control);
+  control.parent = board;
+  return control;
+}
+
+/**
+ * A new board with a way back to the board it was made from, and a word
+ * grid to fill
+ * @param {string} from - the board it is opened from
+ * @returns {TreeBase} the new board
+ */
+function createBoard(from) {
+  const control = ensureBoards();
+  const name = boardName("New board");
+  const board = TreeBase.fromObject(
+    {
+      className: "TabPanel",
+      props: { name, label: name, direction: "column" },
+      children: [],
+    },
+    control,
+  );
+  const back = TreeBase.fromObject(
+    {
+      className: "Button",
+      props: { label: `← ${from}`, name: uniqueName("back"), scale: "0.6" },
+      children: [],
+    },
+    board,
+  );
+  setLinkTarget(back, from);
+  const grid = TreeBase.fromObject(gridSpec(), board);
+  setUp([back, grid]);
+  return board;
+}
+
+/** The board a button opens ("" when it doesn't open one)
+ * @param {TreeBase} button */
+export function linkTarget(button) {
+  const name = button["name"]?.value;
+  for (const action of Globals.actions?.children ?? []) {
+    if (action["origin"].value !== name) continue;
+    for (const update of action.children) {
+      if (update.className === "ActionUpdate" && update["stateName"].value === "$board") {
+        return String(update["newValue"].text).replace(/^'|'$/g, "");
+      }
+    }
+  }
+  return "";
+}
+
+/** Make a button open a board, or ("") say its words again
+ * @param {TreeBase} button
+ * @param {string} target */
+export function setLinkTarget(button, target) {
+  const actions = Globals.actions;
+  const name = button["name"].value;
+  for (const action of [...actions.children]) {
+    if (action["origin"].value === name) action.remove();
+  }
+  const updates = /** @type {[string, string][]} */ (
+    target
+      ? [["$board", `'${target}'`]]
+      : [
+          ["$Speak", "#label"],
+          ["$Display", "add_word(#label)"],
+        ]
+  );
+  TreeBase.fromObject(rule(name, "", updates), actions);
+  actions.update();
+}
+
+/** A button that opens a new board (the + menu's "Board button")
+ * @param {TreeBase | null} anchor
+ * @param {"above" | "below" | "left" | "right" | "inside"} side
+ * @returns {TreeBase} the button */
+export function addBoardButton(anchor, side) {
+  ensureBoards();
+  const fromBoard = (anchor && boardOf(anchor)) ?? currentBoard();
+  const board = createBoard(String(fromBoard?.["name"].value ?? HOME));
+  const button = TreeBase.fromObject(
+    {
+      className: "Button",
+      props: {
+        label: board["name"].value,
+        name: uniqueName("link"),
+        scale: String(defaultScale.button),
+      },
+      children: [],
+    },
+    null,
+  );
+  place(button, anchor ?? fromBoard, anchor ? side : "inside");
+  setLinkTarget(button, board["name"].value);
+  Globals.layout.update();
+  return button;
+}
+
+/** New board opened by a button added at the end of the board showing
+ * @returns {TreeBase} the new board */
+export function addLinkedBoard() {
+  const button = addBoardButton(null, "inside");
+  return /** @type {TreeBase} */ (
+    boards().find((b) => b["name"].value === linkTarget(button))
+  );
+}
+
+/** Make a button open a new board, made from the board it is on
+ * @param {TreeBase} button
+ * @returns {string} the new board's name */
+export function linkToNewBoard(button) {
+  ensureBoards();
+  const from = boardOf(button) ?? currentBoard();
+  const board = createBoard(String(from?.["name"].value ?? HOME));
+  setLinkTarget(button, board["name"].value);
+  Globals.layout.update();
+  return board["name"].value;
+}
+
+/** Make a word square open a board ("" for none, "+" for a new one)
+ * @param {TreeBase} grid
+ * @param {Row} row - the square's row in the content
+ * @param {string} target
+ * @returns {Promise<string>} the board it opens now */
+export async function setSquareLink(grid, row, target) {
+  if (target === "+") {
+    const from = boardOf(grid) ?? (ensureBoards(), currentBoard());
+    target = createBoard(String(from?.["name"].value ?? HOME))["name"].value;
+    Globals.layout.update();
+  }
+  ensureSquareLinks(grid);
+  const { data } = Globals;
+  const rows = [...data.contentRows];
+  const index = rows.indexOf(row);
+  if (index >= 0) {
+    const { link: _old, ...rest } = row;
+    rows[index] = target ? { ...rest, link: target } : rest;
+    data.setContent(rows);
+    await db.write("content", rows);
+  }
+  Globals.state.update();
+  return target;
+}
+
+/** A grid's squares with a "link" open that board instead of saying the
+ * word: a rule ahead of its other rules
+ * @param {TreeBase} grid */
+function ensureSquareLinks(grid) {
+  const actions = Globals.actions;
+  const name = grid["name"].value;
+  const mine = actions.children.filter((r) => r["origin"].value === name);
+  if (mine.some((r) => r.children.some((c) => c["Condition"]?.text === "#link"))) return;
+  const linkRule = TreeBase.fromObject(rule(name, "#link", [["$board", "#link"]]), actions);
+  if (mine.length) linkRule.moveTo(mine[0].index);
+  actions.update();
+}
+
+/** Rename a board, and everything that opens it
+ * @param {TreeBase} board
+ * @param {string} label */
+export async function renameBoard(board, label) {
+  const old = String(board["name"].value);
+  const name = boardName(label, board);
+  if (name === old) return;
+  board["name"].set(name);
+  board["label"].set(name);
+  for (const button of allComponents(Globals.layout).filter((c) => c.className === "Button")) {
+    if (linkTarget(button) !== old) continue;
+    setLinkTarget(button, name);
+    if (button["label"].value === old) button["label"].set(name);
+    if (button["label"].value === `← ${old}`) button["label"].set(`← ${name}`);
+  }
+  const { data } = Globals;
+  if (data.contentRows.some((row) => row.link === old)) {
+    const rows = data.contentRows.map((row) => (row.link === old ? { ...row, link: name } : row));
+    data.setContent(rows);
+    await db.write("content", rows);
+  }
+  if (Globals.state.get("$board") === old) Globals.state.update({ $board: name });
+  Globals.layout.update();
+}
+
+/** Delete a board (not Home), with the buttons and squares that open it
+ * @param {TreeBase} board */
+export async function deleteBoard(board) {
+  const all = boards();
+  if (board === all[0]) return;
+  const name = String(board["name"].value);
+  for (const button of allComponents(Globals.layout).filter((c) => c.className === "Button")) {
+    if (linkTarget(button) === name && boardOf(button) !== board) removePiece(button);
+  }
+  const { data } = Globals;
+  if (data.contentRows.some((row) => row.link === name)) {
+    const rows = data.contentRows.map((row) => {
+      if (row.link !== name) return row;
+      const { link: _gone, ...rest } = row;
+      return rest;
+    });
+    data.setContent(rows);
+    await db.write("content", rows);
+  }
+  board.remove();
+  if (Globals.state.get("$board") === name) Globals.state.update({ $board: all[0]["name"].value });
+  Globals.layout.update();
+}
+
+/**
+ * The boards as a tree, following the buttons and squares that open
+ * them from Home; boards nothing opens are listed at the end
+ * @returns {{board: TreeBase, depth: number}[]}
+ */
+export function boardTree() {
+  const all = boards();
+  const byName = new Map(all.map((b) => [String(b["name"].value), b]));
+  /** @param {TreeBase} board @returns {string[]} */
+  const opens = (board) => {
+    const targets = allComponents(board)
+      .filter((c) => c.className === "Button" && !/^← /.test(String(c["label"].value)))
+      .map(linkTarget);
+    for (const grid of allComponents(board).filter((c) => c.className === "Grid")) {
+      for (const row of Globals.data.getMatchingRows(
+        /** @type {import("./gridFilter").GridFilter[]} */ (grid.children),
+        false,
+      )) {
+        if (row.link) targets.push(String(row.link));
+      }
+    }
+    return targets;
+  };
+  /** @type {{board: TreeBase, depth: number}[]} */
+  const result = [];
+  const seen = new Set();
+  /** @param {TreeBase} board @param {number} depth */
+  const visit = (board, depth) => {
+    if (seen.has(board)) return;
+    seen.add(board);
+    result.push({ board, depth });
+    for (const target of opens(board)) {
+      const child = byName.get(target);
+      if (child) visit(child, depth + 1);
+    }
+  };
+  if (all[0]) visit(all[0], 0);
+  for (const board of all) visit(board, 0);
+  return result;
 }

@@ -8,6 +8,7 @@ import Globals from "app/globals";
 import db from "app/db";
 import { fileOpen } from "browser-fs-access";
 import { findPictogram, isPictogram, pictureChoices } from "./pictograms";
+import { boards, setSquareLink, showBoard } from "./pieces";
 import "css/grid.css";
 
 /**
@@ -328,9 +329,9 @@ class Grid extends TreeBase {
   picturePopover() {
     const pick = /** @type {NonNullable<Grid["_picturePick"]>} */ (this._picturePick);
     const { rows, columns } = this._shape;
-    const current = String(
-      Globals.data.getMatchingRows(this.children, false)[pick.absIdx]?.symbol ?? "",
-    );
+    const row = Globals.data.getMatchingRows(this.children, false)[pick.absIdx];
+    const current = String(row?.symbol ?? "");
+    const link = String(row?.link ?? "");
     // below the square in the top half, above it in the bottom half, and
     // kept inside the grid sideways
     /** @type {Partial<CSSStyleDeclaration>} */
@@ -377,6 +378,31 @@ class Grid extends TreeBase {
             </button>`
           : html``}
       </div>
+      <label class="picture-popover-link">
+        <span>Tapping it</span>
+        <select
+          @change=${async (/** @type {Event} */ e) => {
+            const value = /** @type {HTMLSelectElement} */ (e.target).value;
+            if (!row) return;
+            const target = await setSquareLink(this, row, value);
+            if (value === "+") {
+              this._picturePick = null;
+              showBoard(target);
+            }
+          }}
+        >
+          <option value="" ?selected=${!link}>says the word</option>
+          ${boards().map(
+            (board) => html`<option
+              value=${board["name"].value}
+              ?selected=${link === board["name"].value}
+            >
+              opens “${board["name"].value}”
+            </option>`,
+          )}
+          <option value="+">opens a new board</option>
+        </select>
+      </label>
     </div>`;
   }
 
@@ -604,6 +630,12 @@ class Grid extends TreeBase {
       ];
     } else {
       content = msg;
+    }
+    if (item.link) {
+      content = [
+        ...(Array.isArray(content) ? content : [content]),
+        html`<span class="board-link-badge" title=${`Opens ${item.link}`}>➜</span>`,
+      ];
     }
     if (!item.symbol && absIdx >= 0 && Globals.state?.get("editing")) {
       content = [

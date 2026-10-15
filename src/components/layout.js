@@ -26,6 +26,17 @@ import {
   movePiece,
   clearButtonFor,
   visualClasses,
+  boards,
+  boardTree,
+  currentBoard,
+  showBoard,
+  isBoard,
+  addLinkedBoard,
+  renameBoard,
+  deleteBoard,
+  linkTarget,
+  setLinkTarget,
+  linkToNewBoard,
 } from "./pieces";
 
 // map old names to new for the transition
@@ -165,7 +176,63 @@ export class Layout extends DesignerPanel {
           + Add a piece at the bottom
         </button>`;
     }
-    return html`<div class="layout-simple">${outline}${body}</div>`;
+    return html`<div class="layout-simple">
+      ${outline}${empty ? html`` : this.boardsBar()}${body}
+    </div>`;
+  }
+
+  /** The boards, as a tree of which opens which, to switch between */
+  boardsBar() {
+    const tree = boardTree();
+    /** @param {TreeBase} board */
+    const open = (board) => {
+      showBoard(board["name"].value);
+      this.select(board);
+    };
+    const addBoard = () => {
+      const board = addLinkedBoard();
+      this._adding = null;
+      this._selected = board;
+      showBoard(board["name"].value);
+    };
+    if (!tree.length) {
+      return html`<div class="boards-bar">
+        <div class="boards-head">
+          <strong>Boards</strong>
+          <button class="piece-action" @click=${addBoard}>+ Add a board</button>
+        </div>
+        <small>
+          A board can open other boards, like folders: Home → Food → Fruit.
+          Adding one puts a button on this board that opens it.
+        </small>
+      </div>`;
+    }
+    const current = currentBoard();
+    return html`<div class="boards-bar">
+      <div class="boards-head">
+        <strong>Boards</strong>
+        <button
+          class="piece-action"
+          title=${`Adds a button on “${current?.["name"].value}” that opens the new board`}
+          @click=${addBoard}
+        >
+          + New board
+        </button>
+      </div>
+      <ul class="board-tree" role="list">
+        ${tree.map(
+          ({ board, depth }) => html`<li style=${`padding-left: ${depth * 1.1}em`}>
+            <button
+              class=${board === current ? "board-chip current" : "board-chip"}
+              aria-current=${board === current ? "true" : "false"}
+              @click=${() => open(board)}
+            >
+              ${depth ? "↳ " : ""}${board["name"].value}
+            </button>
+          </li>`,
+        )}
+      </ul>
+    </div>`;
   }
 
   /** The choice of pieces to add */
@@ -234,7 +301,10 @@ export class Layout extends DesignerPanel {
       ["right", "→ Right"],
     ];
     const isTab = piece.className === "TabPanel";
-    const canRemove = !isTab || (piece.parent?.children.length ?? 0) > 1;
+    const board = isBoard(piece);
+    const canRemove = board
+      ? piece !== boards()[0]
+      : !isTab || (piece.parent?.children.length ?? 0) > 1;
     const moveButtons = isTab
       ? html``
       : html`<div class="piece-add">
@@ -271,7 +341,7 @@ export class Layout extends DesignerPanel {
               Globals.state.update();
             }}
           >
-            + Add a piece inside this tab
+            + Add a piece inside this ${board ? "board" : "tab"}
           </button>`
         : html``}
       ${isTab
@@ -288,12 +358,17 @@ export class Layout extends DesignerPanel {
         ? html`<button
             class="piece-action piece-remove"
             @click=${() => {
+              if (board) {
+                deleteBoard(piece);
+                this.select(null);
+                return;
+              }
               const tabs = isTab ? piece.parent : null;
               removePiece(piece);
               this.select(tabs ?? null);
             }}
           >
-            ${isTab ? "Remove this tab" : "Remove from the board"}
+            ${board ? "Delete this board" : isTab ? "Remove this tab" : "Remove from the board"}
           </button>`
         : html``}
     </div>`;
@@ -408,8 +483,36 @@ export class Layout extends DesignerPanel {
             <span>Clear button next to it</span>
           </label>`;
       }
-      case "Button":
-        return html`${text("Says", piece["label"])}`;
+      case "Button": {
+        const target = linkTarget(piece);
+        return html`${text(target ? "Label" : "Says", piece["label"])}
+          <label class="piece-field">
+            <span>When tapped</span>
+            <select
+              @change=${(/** @type {Event} */ e) => {
+                const value = /** @type {HTMLSelectElement} */ (e.target).value;
+                if (value === "+") linkToNewBoard(piece);
+                else {
+                  setLinkTarget(piece, value);
+                  Globals.state.update();
+                }
+              }}
+            >
+              <option value="" ?selected=${!target}>says its words</option>
+              ${boards().map(
+                (b) => html`<option value=${b["name"].value} ?selected=${target === b["name"].value}>
+                  opens “${b["name"].value}”
+                </option>`,
+              )}
+              <option value="+">opens a new board</option>
+            </select>
+          </label>
+          ${target
+            ? html`<button class="piece-action" @click=${() => showBoard(target)}>
+                Show “${target}”
+              </button>`
+            : html``}`;
+      }
       case "TabControl":
         return html`<div class="piece-field piece-tabs">
             <span>Tabs</span>
@@ -431,6 +534,18 @@ export class Layout extends DesignerPanel {
             change what it holds.
           </p>`;
       case "TabPanel":
+        if (isBoard(piece)) {
+          return html`${text("Board name", {
+              get value() {
+                return piece["label"].value;
+              },
+              set: (/** @type {string} */ value) => renameBoard(piece, value),
+            })}
+            <p class="piece-hint">
+              Buttons and word squares that open this board, and its Back
+              buttons, follow the new name.
+            </p>`;
+        }
         return html`${text("Tab name", {
           get value() {
             return piece["label"].value;
@@ -857,7 +972,7 @@ function howToFill() {
     </div>
     <div class="howto-row">
       <span class="howto-gesture">Click a picture</span>
-      <span>to choose a better one</span>
+      <span>to choose a better one, or make the square open a board</span>
     </div>
     <div class="howto-row">
       <span class="howto-gesture">Double-click</span>

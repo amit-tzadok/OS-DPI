@@ -456,3 +456,52 @@ body.designing #UI {
   padding: 10px;
   box-sizing: border-box;
 }
+
+/* ── Boards: which board opens which (layout.js) ── */
+.boards-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding-bottom: 0.75em;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.boards-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.boards-bar small {
+  color: var(--text2);
+}
+
+.board-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+
+.board-chip {
+  padding: 0.3em 0.75em;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: var(--surface1);
+  color: var(--text1);
+  cursor: pointer;
+}
+
+.board-chip:hover {
+  border-color: var(--brand);
+}
+
+.board-chip.current {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: white;
+  font-weight: 600;
+}

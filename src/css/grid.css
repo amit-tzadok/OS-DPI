@@ -407,3 +407,38 @@ body.designing .grid button:hover .picture-add {
 .grid .picture-popover-actions button {
   padding: 0.4em 0.7em;
 }
+
+/* a square or button that opens another board (pieces.js) */
+.grid button .board-link-badge,
+button.button .board-link-badge {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  font-size: 0.8em;
+  font-weight: 700;
+  color: var(--brand);
+  pointer-events: none;
+  /* not stretched like a button's label (button.css) */
+  width: auto;
+  padding: 0;
+  display: block;
+}
+
+.grid button:has(.board-link-badge),
+button.button:has(.board-link-badge) {
+  position: relative;
+  border-bottom: 3px solid var(--brand);
+}
+
+.picture-popover-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding-top: 0.4em;
+  border-top: 1px solid var(--border-color);
+}
+
+.picture-popover-link select {
+  flex: 1;
+  min-width: 0;
+}

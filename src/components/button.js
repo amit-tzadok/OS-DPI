@@ -5,6 +5,7 @@ import { styleString } from "./style";
 import { imageOrVideo } from "./grid";
 import "css/button.css";
 import Globals from "app/globals";
+import { linkTarget } from "./pieces";
 
 // ── Right-click context menu ──────────────────────────────────────────────────
 
@@ -291,6 +292,9 @@ class Button extends TreeBase {
     }
 
     const multiSelected = TreeBase.selectedIds.has(this.id);
+    // a button that opens another board (not a Back button) is marked
+    const target = linkTarget(this);
+    const opensBoard = target && !/^← /.test(String(label)) ? target : "";
     return html`<button
       class=${"button" + (multiSelected ? " multi-selected" : "")}
       id=${this.id}
@@ -373,7 +377,9 @@ class Button extends TreeBase {
         }
       }}
     >
-      ${content}${this.children.map((c) => c.safeTemplate())}
+      ${content}${opensBoard
+        ? html`<span class="board-link-badge" title=${`Opens ${opensBoard}`}>➜</span>`
+        : html``}${this.children.map((c) => c.safeTemplate())}
     </button>`;
   }
 }

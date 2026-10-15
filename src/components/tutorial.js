@@ -93,6 +93,19 @@ const steps = [
       "them.",
   },
   {
+    tab: "Layout",
+    find: () =>
+      document.querySelector(".boards-bar") ||
+      document.querySelector("#tabs .panels"),
+    title: "More boards",
+    body:
+      "A board can open other boards, like folders: Home → Food → Fruit. " +
+      "Add one under Boards, or a Board button from a piece's +. A word " +
+      "square can open a board too: click its picture and pick what " +
+      "tapping it does. New boards get a Back button, and the message " +
+      "bar stays on every board.",
+  },
+  {
     tab: "Content",
     find: () =>
       document.querySelector(".content .ai-section") ||
