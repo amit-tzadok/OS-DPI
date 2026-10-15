@@ -20692,19 +20692,7 @@ class Layout extends DesignerPanel {
           + New board
         </button>
       </div>
-      <ul class="board-tree" role="list">
-        ${tree.map(
-          ({ board, depth }) => html`<li style=${`padding-left: ${depth * 1.1}em`}>
-            <button
-              class=${board === current ? "board-chip current" : "board-chip"}
-              aria-current=${board === current ? "true" : "false"}
-              @click=${() => open(board)}
-            >
-              ${depth ? "↳ " : ""}${board["name"].value}
-            </button>
-          </li>`,
-        )}
-      </ul>
+      ${boardTreeView(open)}
     </div>`;
   }
 
@@ -21224,6 +21212,143 @@ class ComponentsPanel extends DesignerPanel {
   }
 }
 TreeBase.register(ComponentsPanel, "ComponentsPanel");
+
+// ── Boards, drawn as a tree with lines from each board to the ones it
+// opens, in the Layout panel and on the board map ─────────────────────────
+
+/** @typedef {{board: TreeBase, children: BoardNode[]}} BoardNode */
+
+/** The boards nested by which opens which (from boardTree's order)
+ * @returns {BoardNode[]} */
+function nestedBoards() {
+  /** @type {BoardNode[]} */
+  const roots = [];
+  /** @type {BoardNode[]} the open path, by depth */
+  const path = [];
+  for (const { board, depth } of boardTree()) {
+    const node = { board, children: [] };
+    path.length = depth;
+    (depth ? path[depth - 1].children : roots).push(node);
+    path.push(node);
+  }
+  return roots;
+}
+
+/** The boards from Home to the one showing
+ * @returns {BoardNode[]} */
+function pathToCurrent() {
+  const current = currentBoard();
+  /** @param {BoardNode[]} nodes @returns {BoardNode[] | null} */
+  const find = (nodes) => {
+    for (const node of nodes) {
+      if (node.board === current) return [node];
+      const below = find(node.children);
+      if (below) return [node, ...below];
+    }
+    return null;
+  };
+  return find(nestedBoards()) ?? [];
+}
+
+/** @param {(board: TreeBase) => void} open */
+function boardTreeView(open) {
+  const current = currentBoard();
+  /** @param {BoardNode[]} nodes @returns {Hole} */
+  const branch = (nodes) => html`<ul class="board-tree" role="list">
+    ${nodes.map(
+      ({ board, children }) => html`<li>
+        <button
+          class=${board === current ? "board-chip current" : "board-chip"}
+          aria-current=${board === current ? "true" : "false"}
+          @click=${() => open(board)}
+        >
+          ${board["name"].value}
+        </button>
+        ${children.length ? branch(children) : html``}
+      </li>`,
+    )}
+  </ul>`;
+  return branch(nestedBoards());
+}
+
+// ── The board map: where you are among the boards, above the board in the
+// designer ───────────────────────────────────────────────────────────────
+
+let mapOpen = false;
+
+function drawBoardMap() {
+  const map = fixedElement("board-map");
+  const board = document.getElementById("UI");
+  const showing = !!Globals.state?.get("editing") && boards().length > 1 && board;
+  document.body.classList.toggle("has-board-map", !!showing);
+  if (!showing) {
+    map.hidden = true;
+    mapOpen = false;
+    return;
+  }
+  const box = board.getBoundingClientRect();
+  map.hidden = false;
+  Object.assign(map.style, {
+    left: `${box.left + 10}px`,
+    top: `${box.top + 6}px`,
+    width: `${box.width - 20}px`,
+  });
+  /** @param {TreeBase} target */
+  const open = (target) => {
+    mapOpen = false;
+    showBoard(target["name"].value);
+    Globals.layout.select(target);
+  };
+  const path = pathToCurrent();
+  const here = path.at(-1);
+  const opens = here?.children ?? [];
+  render(
+    map,
+    html`<nav class="board-map-bar" aria-label="Boards">
+        <span class="board-map-label">Board:</span>
+        ${path.map(
+          (node, i) => html`${i ? html`<span class="board-map-sep" aria-hidden="true">›</span>` : html``}<button
+              class=${node === here ? "board-chip current" : "board-chip"}
+              aria-current=${node === here ? "page" : "false"}
+              @click=${() => open(node.board)}
+            >
+              ${node.board["name"].value}
+            </button>`,
+        )}
+        ${opens.length
+          ? html`<span class="board-map-opens">opens</span>${opens.map(
+              (node) => html`<button class="board-chip next" @click=${() => open(node.board)}>
+                ${node.board["name"].value} ➜
+              </button>`,
+            )}`
+          : html``}
+        <button
+          class=${mapOpen ? "board-map-toggle open" : "board-map-toggle"}
+          aria-expanded=${mapOpen}
+          @click=${() => {
+            mapOpen = !mapOpen;
+            drawBoardMap();
+          }}
+        >
+          🗺 Map
+        </button>
+      </nav>
+      ${mapOpen
+        ? html`<div class="board-map-tree" role="dialog" aria-label="All boards">
+            ${boardTreeView(open)}
+          </div>`
+        : html``}`,
+  );
+}
+
+document.addEventListener("rendercomplete", drawBoardMap);
+window.addEventListener("resize", drawBoardMap);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && mapOpen) {
+    mapOpen = false;
+    drawBoardMap();
+  }
+});
 
 // ── On the board: + buttons around the selected piece, and a grip to drag
 // it somewhere else (designer only) ──────────────────────────────────────
@@ -28364,7 +28489,8 @@ const steps = [
       "Add one under Boards, or a Board button from a piece's +. A word " +
       "square can open a board too: click its picture and pick what " +
       "tapping it does. New boards get a Back button, and the message " +
-      "bar stays on every board.",
+      "bar stays on every board. The strip above the board shows where " +
+      "you are and what it opens; 🗺 Map shows them all.",
   },
   {
     tab: "Content",
