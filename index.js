@@ -27687,38 +27687,72 @@ const steps = [
     find: () => document.querySelector("#tabs .buttons"),
     title: "Designer panels",
     body:
-      "These tabs switch between the designer panels. Layout is the " +
-      "structure, Content is the data and media. The panels for actions, " +
-      "cues, patterns, and access methods live behind Advanced.",
+      "Layout is where you build the board. Content holds its words and " +
+      "media. Advanced has the rest: the full component tree " +
+      "(Components), actions, cues, patterns, and access methods.",
   },
   {
     tab: "Layout",
-    find: () => document.querySelector("#tabs .panels"),
-    title: "Layout: the pieces of your board",
+    find: () =>
+      document.querySelector(".piece-choice-main") ||
+      document.querySelector("#tabs .panels"),
+    title: "Start a board",
     body:
-      "Add pieces here — a message bar, word grids, buttons, tabs. Click " +
-      "a piece on the board to change it; the + buttons around it add a " +
-      "piece next to it, ⠿ Move drags it, and the grey bars between pieces " +
-      "resize them. The full component tree is under Advanced → Components.",
+      "On an empty board, Talking board gives you a message bar and a " +
+      "word grid in one click. Or add one piece at a time: a message " +
+      "bar, a word grid, a button, or tabs for pages of words.",
+  },
+  {
+    tab: "Layout",
+    find: () =>
+      document.querySelector("#UI .grid") ||
+      document.querySelector("#tabs .panels"),
+    title: "Fill the grid with words",
+    body:
+      "Click a square on the board and type a word. Enter moves on to " +
+      "the next square, and pasting a list fills a square per line. The " +
+      "grid grows by itself as you add words.",
+  },
+  {
+    tab: "Layout",
+    find: () =>
+      document.querySelector("#UI .grid img") ||
+      document.querySelector("#UI .grid") ||
+      document.querySelector("#tabs .panels"),
+    title: "Pictures",
+    body:
+      "Each word gets a free picture symbol by itself. Click a picture " +
+      "to choose a better one (an AI helps if you set one up), or " +
+      "double-click a square to use a picture from your computer.",
+  },
+  {
+    tab: "Layout",
+    find: () => document.querySelector("#UI"),
+    title: "Change and arrange pieces",
+    body:
+      "Click a piece on the board to select it: its settings show in " +
+      "Layout. The + buttons around it add a piece on that side, ⠿ Move " +
+      "drags it somewhere else, and the grey bars between pieces resize " +
+      "them.",
   },
   {
     tab: "Content",
     find: () =>
       document.querySelector(".content .ai-section") ||
       document.querySelector("#tabs .panels"),
-    title: "Content: rows for your grid",
+    title: "Content: words from elsewhere",
     body:
-      "Spreadsheet rows fill Grid buttons automatically. Load a sheet " +
-      "with File → Load Sheet, or open “✨ Generate with AI” and describe " +
-      "the board you want.",
+      "The words behind your grids live here too. Load a spreadsheet " +
+      "with File → Load Sheet, or open “✨ Generate with AI”, describe " +
+      "the board you want, and let it build one for you.",
   },
   {
     tab: "Content",
     find: () => document.querySelector(".content-load-media-btn"),
-    title: "Media files",
+    title: "Your own media",
     body:
-      "Load images and sounds here, then drag any thumbnail onto a " +
-      "button on your board to assign it.",
+      "Load your own images and sounds here, then drag a thumbnail onto " +
+      "a button on the board to use it.",
   },
   {
     find: () => menuButton("File"),
@@ -27772,9 +27806,9 @@ const steps = [
   {
     title: "That’s the tour!",
     body:
-      "Start with Generate with AI or a Talking board in Layout, type in " +
-      "some words, and press Preview. You can run this tour again any time " +
-      "from Help → Tutorial.",
+      "To begin: click Talking board in Layout, type some words into the " +
+      "grid, and press Preview to try it. You can run this tour again any " +
+      "time from Help → Tutorial.",
   },
 ];
 
