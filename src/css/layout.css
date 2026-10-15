@@ -325,7 +325,8 @@ html[color-scheme="dark"] .piece-choice.piece-choice-main {
 /* ── On the board: + buttons, grip and drop marker (layout.js) ── */
 #piece-overlay {
   position: fixed;
-  z-index: 50;
+  /* under the toolbar's menus (50) and dialogs */
+  z-index: 40;
   pointer-events: none;
 }
 
@@ -424,7 +425,7 @@ html[color-scheme="dark"] .piece-choice.piece-choice-main {
 /* where a dragged piece will land: a bar on that side of the target */
 #piece-drop {
   position: fixed;
-  z-index: 49;
+  z-index: 39;
   pointer-events: none;
   outline: 2px dashed var(--brand);
   outline-offset: -2px;
