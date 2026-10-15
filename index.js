@@ -28483,14 +28483,27 @@ const steps = [
     find: () =>
       document.querySelector(".boards-bar") ||
       document.querySelector("#tabs .panels"),
-    title: "More boards",
+    title: "More boards, if you want them",
     body:
-      "A board can open other boards, like folders: Home → Food → Fruit. " +
-      "Add one under Boards, or a Board button from a piece's +. A word " +
-      "square can open a board too: click its picture and pick what " +
-      "tapping it does. New boards get a Back button, and the message " +
-      "bar stays on every board. The strip above the board shows where " +
-      "you are and what it opens; 🗺 Map shows them all.",
+      "One board is all most people need. If you want more, a board can " +
+      "open other boards, like folders: Home → Food → Fruit. Use the + " +
+      "button under Boards (it also puts a button to the new board here), " +
+      "or choose Board button from a piece's + menu. A word square " +
+      "can open a board too: click its picture and pick what tapping it " +
+      "does.",
+  },
+  {
+    tab: "Layout",
+    find: () =>
+      document.querySelector("#board-map:not([hidden])") ||
+      document.querySelector(".boards-bar") ||
+      document.querySelector("#tabs .panels"),
+    title: "Finding your way between boards",
+    body:
+      "Each new board gets a Back button, and the message bar stays on " +
+      "every board, so a sentence can be built across them. Once there " +
+      "is more than one board, the strip above the board shows where you " +
+      "are and which boards it opens; 🗺 Map shows them all as a tree.",
   },
   {
     tab: "Content",
