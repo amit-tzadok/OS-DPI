@@ -231,6 +231,13 @@ fieldset.piece-field legend {
   );
 }
 
+/* the mark on a swatch, like "=" for "same as the background" */
+.piece-color {
+  color: black;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .piece-color:hover {
   border-color: var(--brand);
 }

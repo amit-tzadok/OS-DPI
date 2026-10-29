@@ -75,6 +75,9 @@ class Grid extends TreeBase {
   scale = new Props.Float(1);
   name = new Props.String("grid");
   background = new Props.Color("white");
+  buttonColor = new Props.String("", {
+    title: 'The buttons\' color: empty for the grid\'s own color, "none" for plain buttons, or any color',
+  });
   spacing = new Props.Integer(3, {
     min: 0,
     max: 40,
@@ -1014,10 +1017,17 @@ class Grid extends TreeBase {
     style.gap = spacing;
     style.padding = spacing;
 
-    // a chosen color fills the buttons too, with text that stays readable
-    const background = this.background.value;
-    const colored = !!background && background !== "white";
-    if (colored) style.color = readableTextColor(background);
+    // the buttons take the grid's color unless they have their own, or
+    // none; text on them stays readable
+    const own = this.buttonColor.value.trim();
+    const fill = own === "none" ? "" : own || this.background.value;
+    const colored = !!fill && fill !== "white";
+    if (colored) {
+      Object.assign(style, {
+        "--button-color": fill,
+        "--button-text": readableTextColor(fill),
+      });
+    }
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;
 

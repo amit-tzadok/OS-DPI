@@ -433,27 +433,45 @@ export class Layout extends DesignerPanel {
     const scale = piece["scale"];
     const spacing = piece["spacing"];
 
+    /** A row of color swatches for one setting
+     * @param {string} name
+     * @param {Props.Prop} prop
+     * @param {string[][]} choices - [label, value, swatch color (the value
+     *   if left out; "" for none), mark shown on the swatch]
+     */
+    const swatches = (name, prop, choices) => html`<div class="piece-field">
+      <span>${name}</span>
+      <div class="piece-colors" role="radiogroup" aria-label=${name}>
+        ${choices.map(
+          ([label, value, swatch = value, mark = ""]) => html`<button
+            class="piece-color"
+            role="radio"
+            aria-checked=${prop.value === value ? "true" : "false"}
+            aria-label=${label}
+            title=${label}
+            style=${swatch ? `background-color: ${swatch}` : ""}
+            @click=${() => {
+              prop.set(value);
+              piece.update();
+            }}
+          >
+            ${mark}
+          </button>`,
+        )}
+      </div>
+    </div>`;
+
+    const buttonColor = piece["buttonColor"];
     const colors =
       background instanceof Props.Color
-        ? html`<div class="piece-field">
-            <span>Color</span>
-            <div class="piece-colors" role="radiogroup" aria-label="Color">
-              ${PieceColors.map(
-                ([label, value]) => html`<button
-                  class="piece-color"
-                  role="radio"
-                  aria-checked=${background.value === value ? "true" : "false"}
-                  aria-label=${label}
-                  title=${label}
-                  style=${value ? `background-color: ${value}` : ""}
-                  @click=${() => {
-                    background.set(value);
-                    piece.update();
-                  }}
-                ></button>`,
-              )}
-            </div>
-          </div>`
+        ? html`${swatches("Background", background, PieceColors)}
+          ${buttonColor instanceof Props.String
+            ? swatches("Buttons", buttonColor, [
+                ["Same as the background", "", background.value, "="],
+                ["No color", "none", ""],
+                ...PieceColors.slice(1),
+              ])
+            : html``}`
         : html``;
 
     // size only means something next to other pieces in a row or column:
