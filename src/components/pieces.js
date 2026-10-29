@@ -936,6 +936,39 @@ export async function renameBoard(board, label) {
   Globals.layout.update();
 }
 
+/** Rename a word grid, and everything that finds it by name: its Actions
+ * rules, its own filter, and the words typed into it
+ * @param {TreeBase} grid
+ * @param {string} label */
+export async function renameGrid(grid, label) {
+  const old = String(grid["name"].value);
+  // quotes would break the filter expression below
+  const wanted = label.replace(/['"\\]/g, "").trim();
+  if (!wanted || wanted === old) return;
+  const name = uniqueName(wanted);
+  grid["name"].set(name);
+
+  for (const rule of Globals.actions.children) {
+    if (rule["origin"].value === old) rule["origin"].set(name);
+  }
+  Globals.actions.update();
+
+  for (const filter of grid.children) {
+    // .text is the formula as typed ('grid2'); .value would evaluate it
+    if (filter["field"].value === "#grid" && filter["value"].text === `'${old}'`) {
+      filter["value"].set(`'${name}'`);
+    }
+  }
+
+  const { data } = Globals;
+  if (data.contentRows.some((row) => row.grid === old)) {
+    const rows = data.contentRows.map((row) => (row.grid === old ? { ...row, grid: name } : row));
+    data.setContent(rows);
+    await db.write("content", rows);
+  }
+  Globals.layout.update();
+}
+
 /** Delete a board (not Home), with the buttons and squares that open it
  * @param {TreeBase} board */
 export async function deleteBoard(board) {

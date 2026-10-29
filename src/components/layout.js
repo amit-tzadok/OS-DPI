@@ -34,6 +34,7 @@ import {
   isBoard,
   addLinkedBoard,
   renameBoard,
+  renameGrid,
   deleteBoard,
   linkTarget,
   setLinkTarget,
@@ -258,6 +259,7 @@ export class Layout extends DesignerPanel {
             @click=${() => {
               this._adding = null;
               this._selected = addPiece(piece.kind, adding.anchor, adding.side);
+              focusNameOf(this._selected);
             }}
           >
             <span class="piece-icon" aria-hidden="true">${piece.icon}</span>
@@ -343,6 +345,13 @@ export class Layout extends DesignerPanel {
         <summary>More options</summary>
         ${this.moreSettings(piece)} ${moveButtons}
       </details>
+      <button
+        class="piece-action"
+        title="Every setting of this piece, in the full component tree"
+        @click=${() => showInComponents(piece)}
+      >
+        All settings (Advanced → Components)
+      </button>
       ${canRemove
         ? html`<button
             class="piece-action piece-remove"
@@ -522,7 +531,15 @@ export class Layout extends DesignerPanel {
 
     switch (piece.className) {
       case "Grid":
-        return howToFill();
+        return html`<div class="piece-name">
+            ${text("Name", {
+              get value() {
+                return piece["name"].value;
+              },
+              set: (/** @type {string} */ value) => renameGrid(piece, value),
+            })}
+          </div>
+          ${howToFill()}`;
       case "Display": {
         const size = piece["fontSize"];
         const sizes = [
@@ -1045,6 +1062,7 @@ function drawOverlay() {
               const side = /** @type {Side} */ (overlayMenu);
               overlayMenu = null;
               layout._selected = addPiece(kind.kind, piece, side);
+              focusNameOf(layout._selected);
             }}
           >
             <span aria-hidden="true">${kind.icon}</span> ${kind.label}
@@ -1176,6 +1194,38 @@ function hasWordGrid(node) {
   );
 }
 
+/** How to put words and pictures into a word grid, shown prominently */
+/** Put the cursor in a new grid's Name box, ready to type over "grid2"
+ * @param {TreeBase | null} piece */
+function focusNameOf(piece) {
+  if (piece?.className !== "Grid") return;
+  callAfterRender(() => {
+    const input = document.querySelector(".piece-inspector .piece-name input");
+    if (input instanceof HTMLInputElement) {
+      input.focus();
+      input.select();
+    }
+  });
+}
+
+/** Switch to Advanced → Components with this piece's settings open
+ * @param {TreeBase} piece */
+function showInComponents(piece) {
+  const panel = Globals.designer.children.find((p) => p.name.value === "Components");
+  if (panel) panel.lastFocused = piece.id + "-settings";
+  callAfterRender(() => {
+    // open the piece and every container around it
+    for (let c = /** @type {TreeBase | undefined} */ (piece); c; c = c.parent) {
+      const details = document.getElementById(c.id + "-details");
+      if (details instanceof HTMLDetailsElement) details.open = true;
+    }
+    const summary = document.getElementById(piece.id + "-settings");
+    summary?.scrollIntoView({ block: "center" });
+    summary?.focus();
+  });
+  Globals.designer.switchTab("Components");
+}
+
 /** The colors offered for a piece: strong enough to tell pieces apart,
  * light enough that black words stay readable. "" means no color. */
 const PieceColors = [
@@ -1192,7 +1242,6 @@ const PieceColors = [
   ["Gray", "#c8c8c8"],
 ];
 
-/** How to put words and pictures into a word grid, shown prominently */
 function howToFill() {
   return html`<div class="piece-howto" role="note">
     <strong>Fill the grid on the board:</strong>

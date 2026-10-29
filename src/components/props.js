@@ -760,7 +760,7 @@ export class Code extends Prop {
     for (const ruleMatch of value.matchAll(ruleRE)) {
       let selector = ruleMatch[1];
       const indices = ruleMatch.indices;
-      if (!indices) continue;
+      if (!indices || !indices[1] || !indices[2]) continue;
       const selectorOffset = indices[1][0];
       const body = ruleMatch[2];
       const bodyOffset = indices[2][0];

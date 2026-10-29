@@ -9,6 +9,7 @@
     "moduleResolution": "bundler",
     "maxNodeModuleJsDepth": 0,
     "checkJs": true,
+    "strict": false,
     "target": "ESNext",
     "module": "ESNext",
     "strictNullChecks": true,
