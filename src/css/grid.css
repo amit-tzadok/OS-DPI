@@ -43,6 +43,24 @@ body:not(.designing) .grid button:active {
   background-color: var(--surface3);
 }
 
+/* ── A grid with a chosen color paints its buttons that color ──
+   grid.js sets the color and a readable text color on the inner div;
+   the buttons take both. Empty squares keep their dashed look. */
+.grid.colored button:not(.grid-empty),
+body:not(.designing) .grid.colored button:not(.grid-empty):hover,
+body:not(.designing) .grid.colored button:not(.grid-empty):active {
+  background-color: inherit;
+  color: inherit;
+}
+
+body:not(.designing) .grid.colored button:not(.grid-empty):hover {
+  filter: brightness(0.95);
+}
+
+body:not(.designing) .grid.colored button:not(.grid-empty):active {
+  filter: brightness(0.88);
+}
+
 body:not(.designing) .grid button:focus-visible {
   outline: 3px solid var(--brand);
   outline-offset: -3px;

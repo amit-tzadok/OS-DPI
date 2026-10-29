@@ -2,7 +2,7 @@ import { html } from "uhtml";
 import * as Props from "./props";
 import { TreeBase } from "./treebase";
 import { GridFilter } from "./gridFilter";
-import { styleString } from "./style";
+import { styleString, readableTextColor } from "./style";
 import { formatSlottedString } from "./slots";
 import Globals from "app/globals";
 import db from "app/db";
@@ -72,6 +72,11 @@ class Grid extends TreeBase {
   scale = new Props.Float(1);
   name = new Props.String("grid");
   background = new Props.Color("white");
+  spacing = new Props.Integer(3, {
+    min: 0,
+    max: 40,
+    title: "Space between the buttons, in pixels",
+  });
 
   allowedChildren = ["GridFilter"];
 
@@ -951,13 +956,23 @@ class Grid extends TreeBase {
     if (this._picturePick && Globals.state?.get("editing")) {
       result.push(this.picturePopover());
     }
-    style.gridTemplate = `repeat(${rows}, calc(100% / ${rows})) / repeat(${columns}, 1fr)`;
+    // minmax(0, 1fr) shares the height equally after the spacing is taken out
+    style.gridTemplate = `repeat(${rows}, minmax(0, 1fr)) / repeat(${columns}, 1fr)`;
+    const spacing = `${Math.max(0, this.spacing.value)}px`;
+    style.gap = spacing;
+    style.padding = spacing;
+
+    // a chosen color fills the buttons too, with text that stays readable
+    const background = this.background.value;
+    const colored = !!background && background !== "white";
+    if (colored) style.color = readableTextColor(background);
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;
 
     // the live AI suggestions strip (speechSuggestions.js) gets its own
     // larger text
     const classes = this.name.value === "suggestions" ? ["grid-suggestions"] : [];
+    if (colored) classes.push("colored");
     return this.component({ classes }, body);
   }
 

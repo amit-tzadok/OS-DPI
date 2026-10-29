@@ -34,6 +34,22 @@ export function getColor(name) {
   return ColorNames[name] || name;
 }
 
+/** Black or white, whichever reads better on the given background color
+ * @param {string} background - a color name or any CSS color
+ * @returns {string}
+ */
+export function readableTextColor(background) {
+  const s = new Option().style;
+  s.color = getColor(background);
+  // the browser reports any valid color as rgb(r, g, b) or rgba(...)
+  const rgb = s.color.match(/[\d.]+/g)?.map(Number);
+  if (!rgb || rgb.length < 3) return "black";
+  const [r, g, b] = rgb;
+  // perceived brightness, 0 (black) to 255 (white)
+  const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+  return brightness > 150 ? "black" : "white";
+}
+
 /** @param {Partial<CSSStyleDeclaration>} style */
 function normalizeStyle(style) {
   return Object.fromEntries(

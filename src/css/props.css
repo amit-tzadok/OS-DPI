@@ -66,6 +66,15 @@ label.labeledInput {
   grid-column: 2 / -1;
 }
 
+/* Keep the color swatch right beside its input instead of at the far edge */
+#designer label.labeledInput:not([hiddenLabel]):has(.swatch) {
+  grid-template-columns: var(--prop-label-width) auto 1fr;
+}
+
+#designer label.labeledInput:not([hiddenLabel]) .swatch {
+  justify-self: start;
+}
+
 label.labeledInput[hiddenLabel] span.labelText {
   border: 0;
   clip: rect(0 0 0 0);

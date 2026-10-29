@@ -5,6 +5,7 @@ import * as Props from "./props";
 import "css/layout.css";
 import Globals from "app/globals";
 import { TabPanel } from "./tabcontrol";
+import { StackContainer } from "./stack";
 import { callAfterRender } from "app/render";
 import { ModalDialog } from "./modal-dialog";
 import { clearCues } from "./access/pattern";
@@ -320,7 +321,7 @@ export class Layout extends DesignerPanel {
           Done
         </button>
       </div>
-      ${this.pieceSettings(piece)}
+      ${this.pieceSettings(piece)} ${this.lookSettings(piece)}
       ${isTab && !piece.children.length
         ? html`<button
             class="piece-action"
@@ -413,6 +414,93 @@ export class Layout extends DesignerPanel {
           in the square I click</label
         >
       </fieldset>`;
+  }
+
+  /** Color, size and spacing for any piece that has them
+   * @param {TreeBase} piece */
+  lookSettings(piece) {
+    const background = piece["background"];
+    const scale = piece["scale"];
+    const spacing = piece["spacing"];
+
+    const colors =
+      background instanceof Props.Color
+        ? html`<div class="piece-field">
+            <span>Color</span>
+            <div class="piece-colors" role="radiogroup" aria-label="Color">
+              ${PieceColors.map(
+                ([label, value]) => html`<button
+                  class="piece-color"
+                  role="radio"
+                  aria-checked=${background.value === value ? "true" : "false"}
+                  aria-label=${label}
+                  title=${label}
+                  style=${value ? `background-color: ${value}` : ""}
+                  @click=${() => {
+                    background.set(value);
+                    piece.update();
+                  }}
+                ></button>`,
+              )}
+            </div>
+          </div>`
+        : html``;
+
+    // size only means something next to other pieces in a row or column:
+    // it is this piece's share of the room
+    const sizable =
+      scale instanceof Props.Float &&
+      piece.parent instanceof StackContainer &&
+      piece.parent.children.length > 1;
+    /** @param {number} factor */
+    const resize = (factor) => {
+      const size = Math.max(0.1, +scale.value || 1) * factor;
+      scale.set(Math.round(size * 100) / 100);
+      piece.update();
+    };
+    const size = sizable
+      ? html`<div class="piece-field">
+          <span>Size</span>
+          <button class="piece-action" @click=${() => resize(1 / 1.25)}>
+            − Smaller
+          </button>
+          <button class="piece-action" @click=${() => resize(1.25)}>
+            + Bigger
+          </button>
+        </div>`
+      : html``;
+
+    let space = html``;
+    if (spacing instanceof Props.Integer) {
+      const spacings = [
+        ["None", 0],
+        ["Small", 3],
+        ["Medium", 8],
+        ["Large", 16],
+      ];
+      // a spacing set elsewhere stays selectable
+      if (!spacings.some(([, value]) => value == spacing.value)) {
+        spacings.push([`Custom (${spacing.value})`, spacing.value]);
+      }
+      space = html`<label class="piece-field">
+        <span>Space between buttons</span>
+        <select
+          @change=${(/** @type {Event} */ e) => {
+            spacing.set(/** @type {HTMLSelectElement} */ (e.target).value);
+            piece.update();
+          }}
+        >
+          ${spacings.map(
+            ([label, value]) =>
+              html`<option value=${value} ?selected=${spacing.value == value}>
+                ${label}
+              </option>`,
+          )}
+        </select>
+      </label>`;
+    }
+
+    return html`${colors} ${size} ${space}`;
   }
 
   /** The few settings that matter for each kind of piece
@@ -1086,6 +1174,22 @@ function hasWordGrid(node) {
     node.children.some(hasWordGrid)
   );
 }
+
+/** The colors offered for a piece: strong enough to tell pieces apart,
+ * light enough that black words stay readable. "" means no color. */
+const PieceColors = [
+  ["No color", ""],
+  ["White", "white"],
+  ["Yellow", "#ffe066"],
+  ["Orange", "#ffb366"],
+  ["Red", "#ff8080"],
+  ["Pink", "#ff99cc"],
+  ["Purple", "#c9a3ff"],
+  ["Blue", "#80b3ff"],
+  ["Teal", "#66d9c7"],
+  ["Green", "#8ce68c"],
+  ["Gray", "#c8c8c8"],
+];
 
 /** How to put words and pictures into a word grid, shown prominently */
 function howToFill() {
