@@ -915,14 +915,15 @@ body:not(.designing) .grid button:active {
   background-color: var(--surface3);
 }
 
-/* ── A grid with a chosen color paints its buttons that color ──
-   grid.js sets the color and a readable text color on the inner div;
-   the buttons take both. Empty squares keep their dashed look. */
+/* ── Colored buttons ──
+   grid.js sets the buttons' color (the grid's own, or one chosen for
+   them) and a readable text color on the inner div. Empty squares keep
+   their dashed look. */
 .grid.colored button:not(.grid-empty),
 body:not(.designing) .grid.colored button:not(.grid-empty):hover,
 body:not(.designing) .grid.colored button:not(.grid-empty):active {
-  background-color: inherit;
-  color: inherit;
+  background-color: var(--button-color);
+  color: var(--button-text);
 }
 
 body:not(.designing) .grid.colored button:not(.grid-empty):hover {
@@ -3436,6 +3437,13 @@ fieldset.piece-field legend {
     hsl(0 65% 50%) calc(50% - 1px) calc(50% + 1px),
     transparent calc(50% + 1px)
   );
+}
+
+/* the mark on a swatch, like "=" for "same as the background" */
+.piece-color {
+  color: black;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .piece-color:hover {

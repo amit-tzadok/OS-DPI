@@ -15174,6 +15174,9 @@ class Grid extends TreeBase {
   scale = new Float(1);
   name = new String$1("grid");
   background = new Color("white");
+  buttonColor = new String$1("", {
+    title: 'The buttons\' color: empty for the grid\'s own color, "none" for plain buttons, or any color',
+  });
   spacing = new Integer(3, {
     min: 0,
     max: 40,
@@ -16113,10 +16116,17 @@ class Grid extends TreeBase {
     style.gap = spacing;
     style.padding = spacing;
 
-    // a chosen color fills the buttons too, with text that stays readable
-    const background = this.background.value;
-    const colored = !!background && background !== "white";
-    if (colored) style.color = readableTextColor(background);
+    // the buttons take the grid's color unless they have their own, or
+    // none; text on them stays readable
+    const own = this.buttonColor.value.trim();
+    const fill = own === "none" ? "" : own || this.background.value;
+    const colored = !!fill && fill !== "white";
+    if (colored) {
+      Object.assign(style, {
+        "--button-color": fill,
+        "--button-text": readableTextColor(fill),
+      });
+    }
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;
 
@@ -21020,27 +21030,45 @@ class Layout extends DesignerPanel {
     const scale = piece["scale"];
     const spacing = piece["spacing"];
 
+    /** A row of color swatches for one setting
+     * @param {string} name
+     * @param {Props.Prop} prop
+     * @param {string[][]} choices - [label, value, swatch color (the value
+     *   if left out; "" for none), mark shown on the swatch]
+     */
+    const swatches = (name, prop, choices) => html`<div class="piece-field">
+      <span>${name}</span>
+      <div class="piece-colors" role="radiogroup" aria-label=${name}>
+        ${choices.map(
+          ([label, value, swatch = value, mark = ""]) => html`<button
+            class="piece-color"
+            role="radio"
+            aria-checked=${prop.value === value ? "true" : "false"}
+            aria-label=${label}
+            title=${label}
+            style=${swatch ? `background-color: ${swatch}` : ""}
+            @click=${() => {
+              prop.set(value);
+              piece.update();
+            }}
+          >
+            ${mark}
+          </button>`,
+        )}
+      </div>
+    </div>`;
+
+    const buttonColor = piece["buttonColor"];
     const colors =
       background instanceof Color
-        ? html`<div class="piece-field">
-            <span>Color</span>
-            <div class="piece-colors" role="radiogroup" aria-label="Color">
-              ${PieceColors.map(
-                ([label, value]) => html`<button
-                  class="piece-color"
-                  role="radio"
-                  aria-checked=${background.value === value ? "true" : "false"}
-                  aria-label=${label}
-                  title=${label}
-                  style=${value ? `background-color: ${value}` : ""}
-                  @click=${() => {
-                    background.set(value);
-                    piece.update();
-                  }}
-                ></button>`,
-              )}
-            </div>
-          </div>`
+        ? html`${swatches("Background", background, PieceColors)}
+          ${buttonColor instanceof String$1
+            ? swatches("Buttons", buttonColor, [
+                ["Same as the background", "", background.value, "="],
+                ["No color", "none", ""],
+                ...PieceColors.slice(1),
+              ])
+            : html``}`
         : html``;
 
     // size only means something next to other pieces in a row or column:
