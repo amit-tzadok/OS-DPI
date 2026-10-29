@@ -67,6 +67,9 @@ class Grid extends TreeBase {
   fillItems = new Props.Boolean(true, {
     title: "When on, buttons fill left-to-right in order. Turn off to set each button's exact row/column position.",
   });
+  fullSize = new Props.Boolean(false, {
+    title: "When buttons are placed by position, show all the rows and columns, even empty ones",
+  });
   rows = new Props.Integer(3, { min: 1, title: "Number of rows in the grid" });
   columns = new Props.Integer(3, { min: 1, title: "Number of columns in the grid" });
   scale = new Props.Float(1);
@@ -125,19 +128,7 @@ class Grid extends TreeBase {
       return;
     }
     await db.addMedia(file, file.name);
-    if (absIdx >= 0) {
-      await this.assignMediaToCell(absIdx, file.name);
-      return;
-    }
-    const { data } = Globals;
-    const label = file.name.replace(/\.[^.]+$/, "");
-    const rows = [
-      ...data.contentRows,
-      { ...this.newRow(label, row, column, this.page), symbol: file.name },
-    ];
-    data.setContent(rows);
-    await db.write("content", rows);
-    Globals.state.update();
+    await this.assignMediaToCell(absIdx, file.name, row, column);
   }
 
   /** Empty cells on the page last drawn, in reading order, so typing can
@@ -206,6 +197,11 @@ class Grid extends TreeBase {
   async addWords(labels, row, column, keepTyping) {
     const { data } = Globals;
     const empties = this._emptyCells;
+    // a word typed into a square past the next one in line goes where it
+    // was typed, so the grid switches to placing words by position
+    if (empties.findIndex(([r, c]) => r === row && c === column) > 0) {
+      await this.placeByPosition();
+    }
     // buttons fill in order: new words take the first empty cells
     let start = 0;
     if (!this.fillItems.value) {
@@ -246,6 +242,12 @@ class Grid extends TreeBase {
       return;
     }
     const next = empties[start + labels.length];
+    // keep one empty square to spare, as a grid filling in order does
+    if (this.fullSize.value && !empties[start + labels.length]) {
+      const { rows: height, columns: width } = this._shape;
+      await this.growFor(height * width);
+      this._typeNext = keepTyping;
+    }
     if (keepTyping && next) {
       this._editCell = {
         key: `${next[0]},${next[1]}`,
@@ -258,6 +260,40 @@ class Grid extends TreeBase {
     }
     Globals.state.update();
     this.addPictures(added);
+  }
+
+  /** Switch from filling in order to placing words by position, leaving
+   * every word in the square it is shown in now and keeping the grid's
+   * size, so words can then go in any square */
+  async placeByPosition() {
+    if (!this.fillItems.value) return;
+    const { data } = Globals;
+    const rows = Math.max(1, this.rows.value);
+    const columns = Math.max(1, this.columns.value);
+    const words = data.getMatchingRows(this.children, false);
+    // the same squares template() draws them in
+    let perPage = rows * columns;
+    if (words.length > perPage) perPage--;
+    const content = [...data.contentRows];
+    words.forEach((word, i) => {
+      const index = content.indexOf(word);
+      if (index < 0) return; // predicted words and notes aren't board content
+      const cell = i % perPage;
+      const page = Math.floor(i / perPage) + 1;
+      const { page: _, ...rest } = word;
+      content[index] = {
+        ...rest,
+        row: Math.floor(cell / columns) + 1,
+        column: (cell % columns) + 1,
+        ...(page > 1 ? { page } : {}),
+      };
+    });
+    data.setContent(content);
+    await db.write("content", content);
+    this.fillItems.set(false);
+    this.fullSize.set(true);
+    // save without moving focus off the square being typed in
+    await Globals.layout.doUpdate(true);
   }
 
   /** Open the text box on the first empty square at the next drawing */
@@ -525,11 +561,13 @@ class Grid extends TreeBase {
 
   /**
    * Assign a media file to a grid cell by its absolute index.
-   * If absIdx is -1 (empty cell), a new content row is created.
+   * If absIdx is -1 (empty cell), a new button is made in that cell.
    * @param {number} absIdx
    * @param {string} mediaName
+   * @param {number} row - the cell's row on this page
+   * @param {number} column
    */
-  async assignMediaToCell(absIdx, mediaName) {
+  async assignMediaToCell(absIdx, mediaName, row, column) {
     const { data } = Globals;
 
     if (absIdx >= 0) {
@@ -556,10 +594,18 @@ class Grid extends TreeBase {
         }
       }
     } else {
-      // Empty cell — create a new content row with the media as its symbol
+      // Empty cell — a new button named after the file, in this grid and
+      // in the cell it was put on, like a typed word
+      if (this._emptyCells.findIndex(([r, c]) => r === row && c === column) > 0) {
+        await this.placeByPosition();
+      }
       const label = mediaName.replace(/\.[^.]+$/, "");
-      data.contentRows.push({ label, symbol: mediaName, sheetName: "sheet1" });
-      await db.write("content", data.contentRows);
+      const rows = [
+        ...data.contentRows,
+        { ...this.newRow(label, row, column, this.page), symbol: mediaName },
+      ];
+      data.setContent(rows);
+      await db.write("content", rows);
     }
 
     Globals.state.update();
@@ -736,7 +782,12 @@ class Grid extends TreeBase {
             /** @type {HTMLElement} */ (e.currentTarget).dataset.dragIdx ?? "-1",
             10,
           );
-          self.assignMediaToCell(isNaN(absIdx) ? -1 : absIdx, mediaName);
+          self.assignMediaToCell(
+            isNaN(absIdx) ? -1 : absIdx,
+            mediaName,
+            item.row,
+            item.column,
+          );
           return;
         }
         const toIdx = parseInt(
@@ -796,7 +847,7 @@ class Grid extends TreeBase {
         /** @type {HTMLElement} */ (e.currentTarget).classList.remove("grid-drag-over");
         if (!Globals.state?.get("editing") || !e.dataTransfer) return;
         const mediaName = e.dataTransfer.getData("application/x-osdpi-media");
-        if (mediaName) self.assignMediaToCell(-1, mediaName);
+        if (mediaName) self.assignMediaToCell(-1, mediaName, row, column);
       }}
     ></button>`;
   }
@@ -899,8 +950,9 @@ class Grid extends TreeBase {
       // the rows and columns from the designer, so its empty cells show
       // (boards made before this have content, so their shape is unchanged).
       if (maxRow && maxColumn) {
-        rows = maxRow;
-        columns = maxColumn;
+        // a grid switched from filling in order keeps its empty squares
+        rows = this.fullSize.value ? Math.max(rows, maxRow) : maxRow;
+        columns = this.fullSize.value ? Math.max(columns, maxColumn) : maxColumn;
       }
       for (let row = 1; row <= rows; row++) {
         for (let column = 1; column <= columns; column++) {

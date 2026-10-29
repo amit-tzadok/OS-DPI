@@ -406,8 +406,9 @@ export class Layout extends DesignerPanel {
             type="radio"
             name=${piece.id + "-fill"}
             ?checked=${!fill.value}
-            @change=${() => {
-              fill.set(false);
+            @change=${async () => {
+              // words keep the squares they are in now
+              await /** @type {any} */ (piece).placeByPosition();
               piece.update();
             }}
           />
