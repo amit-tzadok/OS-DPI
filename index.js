@@ -10745,6 +10745,22 @@ function getColor(name) {
   return ColorNames[name] || name;
 }
 
+/** Black or white, whichever reads better on the given background color
+ * @param {string} background - a color name or any CSS color
+ * @returns {string}
+ */
+function readableTextColor(background) {
+  const s = new Option().style;
+  s.color = getColor(background);
+  // the browser reports any valid color as rgb(r, g, b) or rgba(...)
+  const rgb = s.color.match(/[\d.]+/g)?.map(Number);
+  if (!rgb || rgb.length < 3) return "black";
+  const [r, g, b] = rgb;
+  // perceived brightness, 0 (black) to 255 (white)
+  const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+  return brightness > 150 ? "black" : "white";
+}
+
 /** @param {Partial<CSSStyleDeclaration>} style */
 function normalizeStyle(style) {
   return Object.fromEntries(
@@ -11536,7 +11552,7 @@ class Code extends Prop {
     for (const ruleMatch of value.matchAll(ruleRE)) {
       let selector = ruleMatch[1];
       const indices = ruleMatch.indices;
-      if (!indices) continue;
+      if (!indices || !indices[1] || !indices[2]) continue;
       const selectorOffset = indices[1][0];
       const body = ruleMatch[2];
       const bodyOffset = indices[2][0];
@@ -14996,6 +15012,39 @@ async function renameBoard(board, label) {
   Globals.layout.update();
 }
 
+/** Rename a word grid, and everything that finds it by name: its Actions
+ * rules, its own filter, and the words typed into it
+ * @param {TreeBase} grid
+ * @param {string} label */
+async function renameGrid(grid, label) {
+  const old = String(grid["name"].value);
+  // quotes would break the filter expression below
+  const wanted = label.replace(/['"\\]/g, "").trim();
+  if (!wanted || wanted === old) return;
+  const name = uniqueName(wanted);
+  grid["name"].set(name);
+
+  for (const rule of Globals.actions.children) {
+    if (rule["origin"].value === old) rule["origin"].set(name);
+  }
+  Globals.actions.update();
+
+  for (const filter of grid.children) {
+    // .text is the formula as typed ('grid2'); .value would evaluate it
+    if (filter["field"].value === "#grid" && filter["value"].text === `'${old}'`) {
+      filter["value"].set(`'${name}'`);
+    }
+  }
+
+  const { data } = Globals;
+  if (data.contentRows.some((row) => row.grid === old)) {
+    const rows = data.contentRows.map((row) => (row.grid === old ? { ...row, grid: name } : row));
+    data.setContent(rows);
+    await db.write("content", rows);
+  }
+  Globals.layout.update();
+}
+
 /** Delete a board (not Home), with the buttons and squares that open it
  * @param {TreeBase} board */
 async function deleteBoard(board) {
@@ -15117,11 +15166,19 @@ class Grid extends TreeBase {
   fillItems = new Boolean$1(true, {
     title: "When on, buttons fill left-to-right in order. Turn off to set each button's exact row/column position.",
   });
+  fullSize = new Boolean$1(false, {
+    title: "When buttons are placed by position, show all the rows and columns, even empty ones",
+  });
   rows = new Integer(3, { min: 1, title: "Number of rows in the grid" });
   columns = new Integer(3, { min: 1, title: "Number of columns in the grid" });
   scale = new Float(1);
   name = new String$1("grid");
   background = new Color("white");
+  spacing = new Integer(3, {
+    min: 0,
+    max: 40,
+    title: "Space between the buttons, in pixels",
+  });
 
   allowedChildren = ["GridFilter"];
 
@@ -15170,19 +15227,7 @@ class Grid extends TreeBase {
       return;
     }
     await db.addMedia(file, file.name);
-    if (absIdx >= 0) {
-      await this.assignMediaToCell(absIdx, file.name);
-      return;
-    }
-    const { data } = Globals;
-    const label = file.name.replace(/\.[^.]+$/, "");
-    const rows = [
-      ...data.contentRows,
-      { ...this.newRow(label, row, column, this.page), symbol: file.name },
-    ];
-    data.setContent(rows);
-    await db.write("content", rows);
-    Globals.state.update();
+    await this.assignMediaToCell(absIdx, file.name, row, column);
   }
 
   /** Empty cells on the page last drawn, in reading order, so typing can
@@ -15251,6 +15296,11 @@ class Grid extends TreeBase {
   async addWords(labels, row, column, keepTyping) {
     const { data } = Globals;
     const empties = this._emptyCells;
+    // a word typed into a square past the next one in line goes where it
+    // was typed, so the grid switches to placing words by position
+    if (empties.findIndex(([r, c]) => r === row && c === column) > 0) {
+      await this.placeByPosition();
+    }
     // buttons fill in order: new words take the first empty cells
     let start = 0;
     if (!this.fillItems.value) {
@@ -15291,6 +15341,12 @@ class Grid extends TreeBase {
       return;
     }
     const next = empties[start + labels.length];
+    // keep one empty square to spare, as a grid filling in order does
+    if (this.fullSize.value && !empties[start + labels.length]) {
+      const { rows: height, columns: width } = this._shape;
+      await this.growFor(height * width);
+      this._typeNext = keepTyping;
+    }
     if (keepTyping && next) {
       this._editCell = {
         key: `${next[0]},${next[1]}`,
@@ -15303,6 +15359,40 @@ class Grid extends TreeBase {
     }
     Globals.state.update();
     this.addPictures(added);
+  }
+
+  /** Switch from filling in order to placing words by position, leaving
+   * every word in the square it is shown in now and keeping the grid's
+   * size, so words can then go in any square */
+  async placeByPosition() {
+    if (!this.fillItems.value) return;
+    const { data } = Globals;
+    const rows = Math.max(1, this.rows.value);
+    const columns = Math.max(1, this.columns.value);
+    const words = data.getMatchingRows(this.children, false);
+    // the same squares template() draws them in
+    let perPage = rows * columns;
+    if (words.length > perPage) perPage--;
+    const content = [...data.contentRows];
+    words.forEach((word, i) => {
+      const index = content.indexOf(word);
+      if (index < 0) return; // predicted words and notes aren't board content
+      const cell = i % perPage;
+      const page = Math.floor(i / perPage) + 1;
+      const { page: _, ...rest } = word;
+      content[index] = {
+        ...rest,
+        row: Math.floor(cell / columns) + 1,
+        column: (cell % columns) + 1,
+        ...(page > 1 ? { page } : {}),
+      };
+    });
+    data.setContent(content);
+    await db.write("content", content);
+    this.fillItems.set(false);
+    this.fullSize.set(true);
+    // save without moving focus off the square being typed in
+    await Globals.layout.doUpdate(true);
   }
 
   /** Open the text box on the first empty square at the next drawing */
@@ -15570,11 +15660,13 @@ class Grid extends TreeBase {
 
   /**
    * Assign a media file to a grid cell by its absolute index.
-   * If absIdx is -1 (empty cell), a new content row is created.
+   * If absIdx is -1 (empty cell), a new button is made in that cell.
    * @param {number} absIdx
    * @param {string} mediaName
+   * @param {number} row - the cell's row on this page
+   * @param {number} column
    */
-  async assignMediaToCell(absIdx, mediaName) {
+  async assignMediaToCell(absIdx, mediaName, row, column) {
     const { data } = Globals;
 
     if (absIdx >= 0) {
@@ -15601,10 +15693,18 @@ class Grid extends TreeBase {
         }
       }
     } else {
-      // Empty cell — create a new content row with the media as its symbol
+      // Empty cell — a new button named after the file, in this grid and
+      // in the cell it was put on, like a typed word
+      if (this._emptyCells.findIndex(([r, c]) => r === row && c === column) > 0) {
+        await this.placeByPosition();
+      }
       const label = mediaName.replace(/\.[^.]+$/, "");
-      data.contentRows.push({ label, symbol: mediaName, sheetName: "sheet1" });
-      await db.write("content", data.contentRows);
+      const rows = [
+        ...data.contentRows,
+        { ...this.newRow(label, row, column, this.page), symbol: mediaName },
+      ];
+      data.setContent(rows);
+      await db.write("content", rows);
     }
 
     Globals.state.update();
@@ -15781,7 +15881,12 @@ class Grid extends TreeBase {
             /** @type {HTMLElement} */ (e.currentTarget).dataset.dragIdx ?? "-1",
             10,
           );
-          self.assignMediaToCell(isNaN(absIdx) ? -1 : absIdx, mediaName);
+          self.assignMediaToCell(
+            isNaN(absIdx) ? -1 : absIdx,
+            mediaName,
+            item.row,
+            item.column,
+          );
           return;
         }
         const toIdx = parseInt(
@@ -15841,7 +15946,7 @@ class Grid extends TreeBase {
         /** @type {HTMLElement} */ (e.currentTarget).classList.remove("grid-drag-over");
         if (!Globals.state?.get("editing") || !e.dataTransfer) return;
         const mediaName = e.dataTransfer.getData("application/x-osdpi-media");
-        if (mediaName) self.assignMediaToCell(-1, mediaName);
+        if (mediaName) self.assignMediaToCell(-1, mediaName, row, column);
       }}
     ></button>`;
   }
@@ -15944,8 +16049,9 @@ class Grid extends TreeBase {
       // the rows and columns from the designer, so its empty cells show
       // (boards made before this have content, so their shape is unchanged).
       if (maxRow && maxColumn) {
-        rows = maxRow;
-        columns = maxColumn;
+        // a grid switched from filling in order keeps its empty squares
+        rows = this.fullSize.value ? Math.max(rows, maxRow) : maxRow;
+        columns = this.fullSize.value ? Math.max(columns, maxColumn) : maxColumn;
       }
       for (let row = 1; row <= rows; row++) {
         for (let column = 1; column <= columns; column++) {
@@ -16001,13 +16107,23 @@ class Grid extends TreeBase {
     if (this._picturePick && Globals.state?.get("editing")) {
       result.push(this.picturePopover());
     }
-    style.gridTemplate = `repeat(${rows}, calc(100% / ${rows})) / repeat(${columns}, 1fr)`;
+    // minmax(0, 1fr) shares the height equally after the spacing is taken out
+    style.gridTemplate = `repeat(${rows}, minmax(0, 1fr)) / repeat(${columns}, 1fr)`;
+    const spacing = `${Math.max(0, this.spacing.value)}px`;
+    style.gap = spacing;
+    style.padding = spacing;
+
+    // a chosen color fills the buttons too, with text that stays readable
+    const background = this.background.value;
+    const colored = !!background && background !== "white";
+    if (colored) style.color = readableTextColor(background);
 
     const body = html`<div style=${styleString(style)}>${result}</div>`;
 
     // the live AI suggestions strip (speechSuggestions.js) gets its own
     // larger text
     const classes = this.name.value === "suggestions" ? ["grid-suggestions"] : [];
+    if (colored) classes.push("colored");
     return this.component({ classes }, body);
   }
 
@@ -20730,6 +20846,7 @@ class Layout extends DesignerPanel {
             @click=${() => {
               this._adding = null;
               this._selected = addPiece(piece.kind, adding.anchor, adding.side);
+              focusNameOf(this._selected);
             }}
           >
             <span class="piece-icon" aria-hidden="true">${piece.icon}</span>
@@ -20793,7 +20910,7 @@ class Layout extends DesignerPanel {
           Done
         </button>
       </div>
-      ${this.pieceSettings(piece)}
+      ${this.pieceSettings(piece)} ${this.lookSettings(piece)}
       ${isTab && !piece.children.length
         ? html`<button
             class="piece-action"
@@ -20815,6 +20932,13 @@ class Layout extends DesignerPanel {
         <summary>More options</summary>
         ${this.moreSettings(piece)} ${moveButtons}
       </details>
+      <button
+        class="piece-action"
+        title="Every setting of this piece, in the full component tree"
+        @click=${() => showInComponents(piece)}
+      >
+        All settings (Advanced → Components)
+      </button>
       ${canRemove
         ? html`<button
             class="piece-action piece-remove"
@@ -20878,14 +21002,102 @@ class Layout extends DesignerPanel {
             type="radio"
             name=${piece.id + "-fill"}
             ?checked=${!fill.value}
-            @change=${() => {
-              fill.set(false);
+            @change=${async () => {
+              // words keep the squares they are in now
+              await /** @type {any} */ (piece).placeByPosition();
               piece.update();
             }}
           />
           in the square I click</label
         >
       </fieldset>`;
+  }
+
+  /** Color, size and spacing for any piece that has them
+   * @param {TreeBase} piece */
+  lookSettings(piece) {
+    const background = piece["background"];
+    const scale = piece["scale"];
+    const spacing = piece["spacing"];
+
+    const colors =
+      background instanceof Color
+        ? html`<div class="piece-field">
+            <span>Color</span>
+            <div class="piece-colors" role="radiogroup" aria-label="Color">
+              ${PieceColors.map(
+                ([label, value]) => html`<button
+                  class="piece-color"
+                  role="radio"
+                  aria-checked=${background.value === value ? "true" : "false"}
+                  aria-label=${label}
+                  title=${label}
+                  style=${value ? `background-color: ${value}` : ""}
+                  @click=${() => {
+                    background.set(value);
+                    piece.update();
+                  }}
+                ></button>`,
+              )}
+            </div>
+          </div>`
+        : html``;
+
+    // size only means something next to other pieces in a row or column:
+    // it is this piece's share of the room
+    const sizable =
+      scale instanceof Float &&
+      piece.parent instanceof StackContainer &&
+      piece.parent.children.length > 1;
+    /** @param {number} factor */
+    const resize = (factor) => {
+      const size = Math.max(0.1, +scale.value || 1) * factor;
+      scale.set(Math.round(size * 100) / 100);
+      piece.update();
+    };
+    const size = sizable
+      ? html`<div class="piece-field">
+          <span>Size</span>
+          <button class="piece-action" @click=${() => resize(1 / 1.25)}>
+            − Smaller
+          </button>
+          <button class="piece-action" @click=${() => resize(1.25)}>
+            + Bigger
+          </button>
+        </div>`
+      : html``;
+
+    let space = html``;
+    if (spacing instanceof Integer) {
+      const spacings = [
+        ["None", 0],
+        ["Small", 3],
+        ["Medium", 8],
+        ["Large", 16],
+      ];
+      // a spacing set elsewhere stays selectable
+      if (!spacings.some(([, value]) => value == spacing.value)) {
+        spacings.push([`Custom (${spacing.value})`, spacing.value]);
+      }
+      space = html`<label class="piece-field">
+        <span>Space between buttons</span>
+        <select
+          @change=${(/** @type {Event} */ e) => {
+            spacing.set(/** @type {HTMLSelectElement} */ (e.target).value);
+            piece.update();
+          }}
+        >
+          ${spacings.map(
+            ([label, value]) =>
+              html`<option value=${value} ?selected=${spacing.value == value}>
+                ${label}
+              </option>`,
+          )}
+        </select>
+      </label>`;
+    }
+
+    return html`${colors} ${size} ${space}`;
   }
 
   /** The few settings that matter for each kind of piece
@@ -20906,7 +21118,15 @@ class Layout extends DesignerPanel {
 
     switch (piece.className) {
       case "Grid":
-        return howToFill();
+        return html`<div class="piece-name">
+            ${text("Name", {
+              get value() {
+                return piece["name"].value;
+              },
+              set: (/** @type {string} */ value) => renameGrid(piece, value),
+            })}
+          </div>
+          ${howToFill()}`;
       case "Display": {
         const size = piece["fontSize"];
         const sizes = [
@@ -21429,6 +21649,7 @@ function drawOverlay() {
               const side = /** @type {Side} */ (overlayMenu);
               overlayMenu = null;
               layout._selected = addPiece(kind.kind, piece, side);
+              focusNameOf(layout._selected);
             }}
           >
             <span aria-hidden="true">${kind.icon}</span> ${kind.label}
@@ -21561,6 +21782,53 @@ function hasWordGrid(node) {
 }
 
 /** How to put words and pictures into a word grid, shown prominently */
+/** Put the cursor in a new grid's Name box, ready to type over "grid2"
+ * @param {TreeBase | null} piece */
+function focusNameOf(piece) {
+  if (piece?.className !== "Grid") return;
+  callAfterRender(() => {
+    const input = document.querySelector(".piece-inspector .piece-name input");
+    if (input instanceof HTMLInputElement) {
+      input.focus();
+      input.select();
+    }
+  });
+}
+
+/** Switch to Advanced → Components with this piece's settings open
+ * @param {TreeBase} piece */
+function showInComponents(piece) {
+  const panel = Globals.designer.children.find((p) => p.name.value === "Components");
+  if (panel) panel.lastFocused = piece.id + "-settings";
+  callAfterRender(() => {
+    // open the piece and every container around it
+    for (let c = /** @type {TreeBase | undefined} */ (piece); c; c = c.parent) {
+      const details = document.getElementById(c.id + "-details");
+      if (details instanceof HTMLDetailsElement) details.open = true;
+    }
+    const summary = document.getElementById(piece.id + "-settings");
+    summary?.scrollIntoView({ block: "center" });
+    summary?.focus();
+  });
+  Globals.designer.switchTab("Components");
+}
+
+/** The colors offered for a piece: strong enough to tell pieces apart,
+ * light enough that black words stay readable. "" means no color. */
+const PieceColors = [
+  ["No color", ""],
+  ["White", "white"],
+  ["Yellow", "#ffe066"],
+  ["Orange", "#ffb366"],
+  ["Red", "#ff8080"],
+  ["Pink", "#ff99cc"],
+  ["Purple", "#c9a3ff"],
+  ["Blue", "#80b3ff"],
+  ["Teal", "#66d9c7"],
+  ["Green", "#8ce68c"],
+  ["Gray", "#c8c8c8"],
+];
+
 function howToFill() {
   return html`<div class="piece-howto" role="note">
     <strong>Fill the grid on the board:</strong>
