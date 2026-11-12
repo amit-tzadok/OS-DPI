@@ -418,7 +418,7 @@ class VoiceSelect extends HTMLSelectElement {
         group.append(item);
       }
     }
-    if (isEleven(current) && ![...group.children].some(
+    if (isEleven(current) && ![...group.querySelectorAll("option")].some(
       (item) => item.value === current
     )) {
       const info = elevenVoiceInfo(current);

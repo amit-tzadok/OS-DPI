@@ -1274,7 +1274,7 @@ function voiceSetting(page) {
   if (!(voice instanceof Props.Voice)) return html``;
   if (isEleven(voice.value)) checkElevenVoice(voice.value);
   const info = elevenVoiceInfo(voice.value);
-  return html`<div class="piece-field">
+  return html`<div class="piece-field board-voice">
       <span>Voice</span>
       <select
         is="select-voice"
@@ -1297,22 +1297,24 @@ function voiceSetting(page) {
         ▶
       </button>
     </div>
-    <div class="piece-field board-voice">
-      <span>Custom ElevenLabs Voice ID</span>
-      <input
-        type="text"
-        placeholder="Paste ElevenLabs Voice ID"
-        aria-label="Custom ElevenLabs Voice ID"
-        .value=${isEleven(voice.value) ? voice.value.slice("eleven:".length) : ""}
-        @change=${(/** @type {Event} */ e) => {
-          const id = /** @type {HTMLInputElement} */ (e.target).value.trim();
-          const selected = id ? `eleven:${id}` : "";
-          for (const each of all(page)) each["voiceURI"].set(selected);
-          if (selected) checkElevenVoice(selected, true);
-          speech?.update();
-        }}
-      />
-    </div>
+    ${getElevenKey() || isEleven(voice.value)
+      ? html`<div class="piece-field">
+          <span>Custom ElevenLabs Voice ID</span>
+          <input
+            type="text"
+            placeholder="Paste ElevenLabs Voice ID"
+            aria-label="Custom ElevenLabs Voice ID"
+            .value=${isEleven(voice.value) ? voice.value.slice("eleven:".length) : ""}
+            @change=${(/** @type {Event} */ e) => {
+              const id = /** @type {HTMLInputElement} */ (e.target).value.trim();
+              const selected = id ? `eleven:${id}` : "";
+              for (const each of all(page)) each["voiceURI"].set(selected);
+              if (selected) checkElevenVoice(selected, true);
+              speech?.update();
+            }}
+          />
+        </div>`
+      : html``}
     ${isEleven(voice.value)
       ? html`<p class=${info?.status === "error" ? "piece-hint voice-problem" : "piece-hint voice-ready"} role="status">
           ${info?.status === "ready"

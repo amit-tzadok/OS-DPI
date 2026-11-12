@@ -5,7 +5,7 @@ import "css/props.css";
 import { compileExpression } from "app/eval";
 import Globals from "app/globals";
 import { TreeBaseSwitchable } from "./treebase";
-import { checkElevenVoice, elevenVoiceInfo } from "./elevenlabs";
+import { checkElevenVoice, elevenVoiceInfo, getElevenKey } from "./elevenlabs";
 import { getColor, isValidColor, styleString } from "./style";
 
 /**
@@ -919,20 +919,22 @@ export class Voice extends Prop {
       >
         <option value="">Default</option>
       </select>`)}
-      <label class="labeledInput">
-        <span class="labelText">Custom ElevenLabs Voice ID</span>
-        <input
-          type="text"
-          placeholder="Paste ElevenLabs Voice ID"
-          .value=${this._value.startsWith("eleven:") ? this._value.slice(7) : ""}
-          @change=${(/** @type {InputEventWithTarget} */ event) => {
-            const id = event.target.value.trim();
-            this.set(id ? `eleven:${id}` : "");
-            if (id) checkElevenVoice(this._value, true);
-            this.update();
-          }}
-        />
-      </label>
+      ${getElevenKey() || this._value.startsWith("eleven:")
+        ? html`<label class="labeledInput">
+            <span class="labelText">Custom ElevenLabs Voice ID</span>
+            <input
+              type="text"
+              placeholder="Paste ElevenLabs Voice ID"
+              .value=${this._value.startsWith("eleven:") ? this._value.slice(7) : ""}
+              @change=${(/** @type {InputEventWithTarget} */ event) => {
+                const id = event.target.value.trim();
+                this.set(id ? `eleven:${id}` : "");
+                if (id) checkElevenVoice(this._value, true);
+                this.update();
+              }}
+            />
+          </label>`
+        : html``}
       ${this._value.startsWith("eleven:")
         ? html`<p role="status">
             ${info?.status === "ready"
